@@ -10,7 +10,7 @@ SUPABASE_URL = os.getenv("SUPABASE_URL") or "https://ulggfjvrpixgxcwithhx.supaba
 SUPABASE_KEY = os.getenv("SUPABASE_KEY") or "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVsZ2dmanZycGl4Z3hjd2l0aGh4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc5MzE2NjEsImV4cCI6MjA2MzQ2NzY2MX0.LnufUEKAH9sCq6KgJGLjLGwJj_RiLRKTCm01Xoi2dBk"
 
 # ---------------- 텔레그램 설정 ----------------
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN") or "6368267307:AAEHz-kub2s-ZKeVDb94FZVD5DyJrPZjN3o"
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN") or "7287889681:AAGM2BXvqJSyzbCrF25hy_WzCL40Cute64A"
 TELEGRAM_CHAT_IDS = [
     "1901931119",     # 너
     "6437712196"      # 친구
@@ -29,7 +29,7 @@ def test_supabase_insert():
     try:
         now = datetime.now().isoformat()
         result = supabase.table("test_table").insert({
-            "msg": "Render Supabase 연결 성공 🎉",
+            "msg": "✅ 새 토큰으로 삽입 성공 🎉",
             "time": now
         }).execute()
         print("📝 Supabase 삽입 성공:", result)
@@ -41,7 +41,7 @@ def test_telegram_send():
     for chat_id in TELEGRAM_CHAT_IDS:
         try:
             url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-            message = f"✅ Render 서버 테스트 메시지\n📡 Supabase 연결 성공"
+            message = f"✅ 새 토큰 적용 성공\n🚀 Render 서버 연결 정상\n📡 Supabase 연동도 완료됨"
             response = requests.post(url, data={
                 "chat_id": chat_id,
                 "text": message
