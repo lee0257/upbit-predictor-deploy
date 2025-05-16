@@ -1,78 +1,58 @@
-import asyncio
-import websockets
-import json
-from datetime import datetime, timezone
 import os
+from datetime import datetime
+from supabase import create_client, Client
 import requests
-from supabase import create_client
 
-# 📡 환경변수 또는 기본값 설정
-SUPABASE_URL = os.getenv("SUPABASE_URL") or "https://cucqadflyerohqhwnver.supabase.co"
-SUPABASE_KEY = os.getenv("SUPABASE_KEY") or "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1Y3FhZGZseWVyb2hxaHdudmVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc3NDkzNDAsImV4cCI6MjA2MzI4NTM0MH0.8HPxuVJ4CJqRMCjHu0UWWBLHv3B9IxXnb6PncOCeJ6g"
+print("🚀 [main.py] Render 서버 실행 시작")
 
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or "6520035957:AAGTXYK2KfUwXOMFgL-ytikgY3EKpKUe4UQ"
-TELEGRAM_CHAT_IDS = os.getenv("TELEGRAM_CHAT_IDS") or "1901931119,친구ID"
+# ---------------- Supabase 설정 ----------------
+SUPABASE_URL = os.getenv("SUPABASE_URL") or "https://ulggfjvrpixgxcwithhx.supabase.co"
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+# ---------------- Telegram 설정 ----------------
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN") or "6368267307:AAEHz-kub2s-ZKeVDb94FZVD5DyJrPZjN3o"
+TELEGRAM_CHAT_IDS = [
+    "1901931119",     # 너
+    "6437712196"      # 친구 ID (자동 포함)
+]
 
-# 📬 텔레그램 메시지 전송 함수
-def send_telegram_message(message: str):
-    for chat_id in TELEGRAM_CHAT_IDS.split(","):
-        try:
-            url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-            payload = {
-                "chat_id": chat_id.strip(),
-                "text": message,
-                "parse_mode": "HTML"
-            }
-            requests.post(url, data=payload)
-        except Exception as e:
-            print(f"[❌ 텔레그램 전송 실패] {e}")
+# ---------------- Supabase 연결 ----------------
+try:
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    print("✅ Supabase 연결 성공")
+except Exception as e:
+    print(f"❌ Supabase 연결 실패: {e}")
+    exit()
 
-# 💾 Supabase 저장
-async def save_to_supabase(symbol, trade_price, timestamp):
+# ---------------- Supabase 삽입 테스트 ----------------
+def test_supabase_insert():
     try:
-        data = {
-            "symbol": symbol,
-            "price": trade_price,
-            "timestamp": timestamp
-        }
-        response = supabase.table("realtime_prices").insert(data).execute()
-        print(f"[✅ 저장 성공] {symbol}: {trade_price}원 ({timestamp})")
+        now = datetime.now().isoformat()
+        result = supabase.table("test_table").insert({
+            "msg": "Render Supabase 삽입 테스트",
+            "time": now
+        }).execute()
+        print("📝 Supabase 삽입 성공:", result)
     except Exception as e:
-        print(f"[❌ 저장 실패] {symbol} | 오류: {e}")
+        print("❌ Supabase 삽입 실패:", e)
 
-# 🔄 Upbit WebSocket 수신 루프
-async def upbit_websocket():
-    uri = "wss://api.upbit.com/websocket/v1"
-    symbols = ["KRW-BTC", "KRW-ETH", "KRW-XRP", "KRW-SOL", "KRW-DOGE"]
-    subscribe_data = [{"ticket": "test"}] + [{"type": "trade", "codes": symbols}]
+# ---------------- 텔레그램 메시지 전송 ----------------
+def test_telegram_send():
+    for chat_id in TELEGRAM_CHAT_IDS:
+        try:
+            url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+            msg = f"✅ Render 서버에서 메시지 전송 테스트 완료\n수신자: {chat_id}"
+            response = requests.post(url, data={
+                "chat_id": chat_id,
+                "text": msg
+            })
+            print(f"📨 [{chat_id}] 응답: {response.text}")
+        except Exception as e:
+            print(f"❌ [{chat_id}] 텔레그램 전송 실패:", e)
 
-    async with websockets.connect(uri) as websocket:
-        await websocket.send(json.dumps(subscribe_data))
-        print("📡 Upbit WebSocket 수집기 시작")
-
-        while True:
-            try:
-                message = await websocket.recv()
-                data = json.loads(message)
-
-                symbol = data.get("code")
-                trade_price = data.get("trade_price")
-                timestamp = datetime.fromtimestamp(data.get("timestamp") / 1000, tz=timezone.utc).isoformat()
-
-                print(f"[📥 수신] {symbol}: {trade_price}원")
-
-                await save_to_supabase(symbol, trade_price, timestamp)
-
-                send_telegram_message(
-                    f"📈 <b>{symbol}</b>\n가격: <b>{int(trade_price):,}원</b>\n시간: {timestamp}"
-                )
-
-            except Exception as e:
-                print(f"[에러 발생] WebSocket 처리 오류: {e}")
-                await asyncio.sleep(1)
-
-# 🚀 메인 실행
+# ---------------- 실행 ----------------
 if __name__ == "__main__":
-    asyncio.run(upbit_websocket())
+    print("🔁 테스트 시작")
+    test_supabase_insert()
+    test_telegram_send()
+    print("🎯 모든 테스트 완료")
