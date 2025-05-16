@@ -2,17 +2,18 @@ import asyncio
 import websockets
 import json
 import requests
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 import time
 import os
 
 from supabase import create_client
 
-# Supabase 설정 (환경변수 우선, 없으면 기본값 사용)
-SUPABASE_URL = os.getenv("SUPABASE_URL") or "https://jbedopxfeifbthyhskaqte.supabase.co"
-SUPABASE_API_KEY = os.getenv("SUPABASE_KEY") or "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpiZWRvcHhmZWlmYnRoeWhza2FxdGUiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTc0NzMwMDc5OSwiZXhwIjoyMDYyODU2Nzk5fQ.50iJe-SW-IXQ06B6Ht8IMNSShmFVhPYUhnrASXdNuwk"
+# Supabase 설정 - 하드코딩 제거 (환경변수 필수)
+SUPABASE_URL = os.environ["SUPABASE_URL"]
+SUPABASE_API_KEY = os.environ["SUPABASE_KEY"]
 supabase = create_client(SUPABASE_URL, SUPABASE_API_KEY)
 
+# Telegram 설정
 TELEGRAM_TOKEN = "6385123522:AAG0qdyaPOv-Q_7d9Y3A3POyTSZKlvx9XZs"
 TELEGRAM_IDS = [1901931119, 5790931119]
 
