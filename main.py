@@ -10,7 +10,7 @@ from supabase import create_client
 SUPABASE_URL = os.getenv("SUPABASE_URL") or "https://cucqadflyerohqhwnver.supabase.co"
 SUPABASE_KEY = os.getenv("SUPABASE_KEY") or "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1Y3FhZGZseWVyb2hxaHdudmVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc3NDkzNDAsImV4cCI6MjA2MzI4NTM0MH0.8HPxuVJ4CJqRMCjHu0UWWBLHv3B9IxXnb6PncOCeJ6g"
 
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or "your_telegram_bot_token"
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or "6520035957:AAGTXYK2KfUwXOMFgL-ytikgY3EKpKUe4UQ"
 TELEGRAM_CHAT_IDS = os.getenv("TELEGRAM_CHAT_IDS") or "1901931119,친구ID"
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
