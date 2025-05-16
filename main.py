@@ -1,58 +1,58 @@
+import asyncio
+import websockets
+import json
 import os
 from datetime import datetime
-from supabase import create_client, Client
 import requests
+from supabase import create_client
 
-print("🚀 [main.py] Render 서버 실행 시작")
+# 환경변수에서 정보 읽기
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-# ---------------- Supabase 연결 ----------------
-SUPABASE_URL = os.getenv("SUPABASE_URL") or "https://ulggfjvrpixgxcwithhx.supabase.co"
-SUPABASE_KEY = os.getenv("SUPABASE_KEY") or "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVsZ2dmanZycGl4Z3hjd2l0aGh4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc5MzE2NjEsImV4cCI6MjA2MzQ2NzY2MX0.LnufUEKAH9sCq6KgJGLjLGwJj_RiLRKTCm01Xoi2dBk"
+# Supabase 클라이언트 설정
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# ---------------- 텔레그램 설정 ----------------
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN") or "7287889681:AAGM2BXvqJSyzbCrF25hy_WzCL40Cute64A"
-TELEGRAM_CHAT_IDS = [
-    "1901931119",     # 너
-    "6437712196"      # 친구
-]
-
-# ---------------- Supabase 연결 시도 ----------------
-try:
-    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-    print("✅ Supabase 연결 성공")
-except Exception as e:
-    print(f"❌ Supabase 연결 실패: {e}")
-    exit()
-
-# ---------------- Supabase 삽입 테스트 ----------------
-def test_supabase_insert():
+# 텔레그램 메시지 전송 함수
+def send_telegram_message(message):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": message
+    }
     try:
-        now = datetime.now().isoformat()
-        result = supabase.table("test_table").insert({
-            "msg": "✅ 새 토큰으로 삽입 성공 🎉",
-            "time": now
-        }).execute()
-        print("📝 Supabase 삽입 성공:", result)
+        res = requests.post(url, data=payload)
+        print(f"📨 [{TELEGRAM_CHAT_ID}] 응답:", res.json())
+    except Exception as e:
+        print("텔레그램 전송 오류:", e)
+
+# Supabase 저장 함수
+def save_to_supabase(message):
+    try:
+        now = datetime.utcnow().isoformat()
+        data = {"msg": message, "time": now}
+        supabase.table("messages").insert(data).execute()
+        print("✅ Supabase 저장 성공")
     except Exception as e:
         print("❌ Supabase 삽입 실패:", e)
 
-# ---------------- 텔레그램 메시지 전송 ----------------
-def test_telegram_send():
-    for chat_id in TELEGRAM_CHAT_IDS:
-        try:
-            url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-            message = f"✅ 새 토큰 적용 성공\n🚀 Render 서버 연결 정상\n📡 Supabase 연동도 완료됨"
-            response = requests.post(url, data={
-                "chat_id": chat_id,
-                "text": message
-            })
-            print(f"📨 [{chat_id}] 응답:", response.text)
-        except Exception as e:
-            print(f"❌ [{chat_id}] 텔레그램 전송 실패:", e)
-
-# ---------------- 실행 ----------------
+# 테스트 실행
 if __name__ == "__main__":
+    print("🚀 [main.py] Render 서버 실행 시작")
+
+    # Supabase 연결 테스트
+    try:
+        supabase.table("messages").select("*").limit(1).execute()
+        print("✅ Supabase 연결 성공")
+    except Exception as e:
+        print("❌ Supabase 연결 실패:", e)
+
     print("🔁 테스트 시작")
-    test_supabase_insert()
-    test_telegram_send()
+
+    message = "✅ 새 토큰 적용 성공\n🚀 Render 서버 연결 정상\n📡 Supabase 연동도 완료됨"
+    send_telegram_message(message)
+    save_to_supabase(message)
+
     print("🎯 모든 테스트 완료")
