@@ -5,18 +5,18 @@ import requests
 
 print("🚀 [main.py] Render 서버 실행 시작")
 
-# ---------------- Supabase 설정 ----------------
+# ---------------- Supabase 연결 ----------------
 SUPABASE_URL = os.getenv("SUPABASE_URL") or "https://ulggfjvrpixgxcwithhx.supabase.co"
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY") or "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVsZ2dmanZycGl4Z3hjd2l0aGh4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc5MzE2NjEsImV4cCI6MjA2MzQ2NzY2MX0.LnufUEKAH9sCq6KgJGLjLGwJj_RiLRKTCm01Xoi2dBk"
 
-# ---------------- Telegram 설정 ----------------
+# ---------------- 텔레그램 설정 ----------------
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN") or "6368267307:AAEHz-kub2s-ZKeVDb94FZVD5DyJrPZjN3o"
 TELEGRAM_CHAT_IDS = [
     "1901931119",     # 너
-    "6437712196"      # 친구 ID (자동 포함)
+    "6437712196"      # 친구
 ]
 
-# ---------------- Supabase 연결 ----------------
+# ---------------- Supabase 연결 시도 ----------------
 try:
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
     print("✅ Supabase 연결 성공")
@@ -29,7 +29,7 @@ def test_supabase_insert():
     try:
         now = datetime.now().isoformat()
         result = supabase.table("test_table").insert({
-            "msg": "Render Supabase 삽입 테스트",
+            "msg": "Render Supabase 연결 성공 🎉",
             "time": now
         }).execute()
         print("📝 Supabase 삽입 성공:", result)
@@ -41,12 +41,12 @@ def test_telegram_send():
     for chat_id in TELEGRAM_CHAT_IDS:
         try:
             url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-            msg = f"✅ Render 서버에서 메시지 전송 테스트 완료\n수신자: {chat_id}"
+            message = f"✅ Render 서버 테스트 메시지\n📡 Supabase 연결 성공"
             response = requests.post(url, data={
                 "chat_id": chat_id,
-                "text": msg
+                "text": message
             })
-            print(f"📨 [{chat_id}] 응답: {response.text}")
+            print(f"📨 [{chat_id}] 응답:", response.text)
         except Exception as e:
             print(f"❌ [{chat_id}] 텔레그램 전송 실패:", e)
 
