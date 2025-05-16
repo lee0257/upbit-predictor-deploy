@@ -1,4 +1,2 @@
-aiohttp
-requests
-python-dotenv
 supabase
+requests

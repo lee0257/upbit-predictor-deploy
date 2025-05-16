@@ -1,58 +1,36 @@
-import asyncio
-import websockets
-import json
 import os
-from datetime import datetime
 import requests
 from supabase import create_client
+from datetime import datetime
 
-# 환경변수에서 정보 읽기
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+CHAT_ID = os.getenv("CHAT_ID")
 
-# Supabase 클라이언트 설정
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# 텔레그램 메시지 전송 함수
-def send_telegram_message(message):
+def insert_message(msg):
+    now = datetime.now().isoformat()
+    try:
+        supabase.table("messages").insert({"msg": msg, "time": now}).execute()
+        return True
+    except Exception as e:
+        print("Supabase 삽입 실패:", e)
+        return False
+
+def send_telegram(msg):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": message
-    }
+    data = {"chat_id": CHAT_ID, "text": msg}
     try:
-        res = requests.post(url, data=payload)
-        print(f"📨 [{TELEGRAM_CHAT_ID}] 응답:", res.json())
+        res = requests.post(url, data=data)
+        print("텔레그램 응답:", res.text)
     except Exception as e:
-        print("텔레그램 전송 오류:", e)
+        print("텔레그램 전송 실패:", e)
 
-# Supabase 저장 함수
-def save_to_supabase(message):
-    try:
-        now = datetime.utcnow().isoformat()
-        data = {"msg": message, "time": now}
-        supabase.table("messages").insert(data).execute()
-        print("✅ Supabase 저장 성공")
-    except Exception as e:
-        print("❌ Supabase 삽입 실패:", e)
-
-# 테스트 실행
 if __name__ == "__main__":
-    print("🚀 [main.py] Render 서버 실행 시작")
-
-    # Supabase 연결 테스트
-    try:
-        supabase.table("messages").select("*").limit(1).execute()
-        print("✅ Supabase 연결 성공")
-    except Exception as e:
-        print("❌ Supabase 연결 실패:", e)
-
-    print("🔁 테스트 시작")
-
-    message = "✅ 새 토큰 적용 성공\n🚀 Render 서버 연결 정상\n📡 Supabase 연동도 완료됨"
-    send_telegram_message(message)
-    save_to_supabase(message)
-
-    print("🎯 모든 테스트 완료")
+    msg = "✅ 서버 작동 확인됨"
+    if insert_message(msg):
+        send_telegram("✅ Supabase 연동 성공 + 메시지 저장 완료")
+    else:
+        send_telegram("❌ Supabase 삽입 실패 - 설정 확인 필요")
