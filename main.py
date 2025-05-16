@@ -1,13 +1,18 @@
-
 import asyncio
 import websockets
 import json
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import time
+import os
 
-SUPABASE_URL = "https://sjmdhxnvqnudjgqabsgd.supabase.co"
-SUPABASE_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNqbWRoeG52cW51ZGpncXFic2dkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDcyODA2MTQsImV4cCI6MjA2Mjg1NjYxNH0.f8dqoeYLlAg96oImoc9rUa4gVZR9qvWdDBZdhrHZC64"
+from supabase import create_client
+
+# Supabase 설정 (환경변수 우선, 없으면 기본값 사용)
+SUPABASE_URL = os.getenv("SUPABASE_URL") or "https://jbedopxfeifbthyhskaqte.supabase.co"
+SUPABASE_API_KEY = os.getenv("SUPABASE_KEY") or "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpiZWRvcHhmZWlmYnRoeWhza2FxdGUiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTc0NzMwMDc5OSwiZXhwIjoyMDYyODU2Nzk5fQ.50iJe-SW-IXQ06B6Ht8IMNSShmFVhPYUhnrASXdNuwk"
+supabase = create_client(SUPABASE_URL, SUPABASE_API_KEY)
+
 TELEGRAM_TOKEN = "6385123522:AAG0qdyaPOv-Q_7d9Y3A3POyTSZKlvx9XZs"
 TELEGRAM_IDS = [1901931119, 5790931119]
 
@@ -47,10 +52,13 @@ async def send_telegram_alert(symbol, price, reason):
 - 추천 이유: {reason}
 """
     for chat_id in TELEGRAM_IDS:
-        requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", data={
-            "chat_id": chat_id,
-            "text": msg
-        })
+        try:
+            requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", data={
+                "chat_id": chat_id,
+                "text": msg
+            })
+        except Exception as e:
+            print(f"[ERROR] Telegram send failed: {e}")
 
 async def save_to_supabase(table, data):
     url = f"{SUPABASE_URL}/rest/v1/{table}"
@@ -68,13 +76,13 @@ async def save_to_supabase(table, data):
 async def handle_message(message):
     try:
         data = json.loads(message)
-        code = data['cd']
-        price = int(data['tp'])
-        vol = float(data['tv'])
+        code = data.get('cd')
+        price = int(data.get('tp', 0))
+        vol = float(data.get('tv', 0))
         side = data.get('ab', '')
         now = datetime.utcnow()
 
-        if data['ty'] == 'ticker':
+        if data.get('ty') == 'ticker':
             await save_to_supabase("realtime_quotes", {
                 "code": code,
                 "price": price,
@@ -93,7 +101,7 @@ async def handle_message(message):
             if vol_prev > 0 and vol_10s / vol_prev > 5 and vol_10s > 3e8:
                 await send_telegram_alert(code, price, "10초 체결량 5배 급증 + 매수세 유입")
 
-        elif data['ty'] == 'trade':
+        elif data.get('ty') == 'trade':
             await save_to_supabase("realtime_ticks", {
                 "code": code,
                 "price": price,
@@ -101,6 +109,7 @@ async def handle_message(message):
                 "side": side,
                 "timestamp": now.isoformat()
             })
+
     except Exception as e:
         print(f"[ERROR] handle_message failed: {e}")
 
