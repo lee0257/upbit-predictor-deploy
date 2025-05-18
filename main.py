@@ -1,16 +1,16 @@
 import asyncio
 import websockets
 import json
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 import requests
 from supabase import create_client
 import os
 
-# 환경 변수 또는 고정 설정
-SUPABASE_URL = "https://wiwdiwsjfzrilwhiexzi.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indpd2Rpd3NqZnpyaWx3aWV4emkiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTc0Nzk1MjIwNiwiZXhwIjoyMDYzNTA4MjA2fQ.iP4S6ckz7iOV8z9mbDCuZtIJccD6tdc8F5CW3z0y7Lo"
-TELEGRAM_TOKEN = "6449398377:AAEAjaHL8uU-3AvD59TYv99gGHQHzDQhNXU"
-CHAT_IDS = [1901931119]  # 친구 ID는 제거됨
+# 환경변수에서 설정값 읽기
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+CHAT_IDS = [int(os.getenv("TELEGRAM_CHAT_ID"))]  # 여러 ID 지원 시 리스트 확장 가능
 
 # Supabase 클라이언트 생성
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -43,13 +43,19 @@ def save_to_supabase(item):
 
 # 코인 포착 메시지 포맷
 def build_message(code, price, reason):
-    return f"[선행급등포착]\n- 코인명: {code}\n- 현재가: {int(price)}원\n- 포착 사유: {reason}\n- 예상 수익 가능성: 높음 (선행포착)"
+    return (
+        f"[선행급등포착]\n"
+        f"- 코인명: {code}\n"
+        f"- 현재가: {int(price)}원\n"
+        f"- 포착 사유: {reason}\n"
+        f"- 예상 수익 가능성: 높음 (선행포착)"
+    )
 
-# 메인 핸들러
+# WebSocket 데이터 처리
 async def handle_socket():
     uri = "wss://api.upbit.com/websocket/v1"
     codes = await get_all_krw_tickers()
-    subscribe_data = [{"ticket":"test"}, {"type":"trade","codes":codes}]
+    subscribe_data = [{"ticket": "test"}, {"type": "trade", "codes": codes}]
 
     while True:
         try:
@@ -82,7 +88,12 @@ async def handle_socket():
                     if volume_ratio > VOLUME_SPIKE_THRESHOLD or price_diff_ratio > PRICE_MOVE_THRESHOLD:
                         message = build_message(code, trade_price, "체결량 급증 + 가격 돌파 시도")
                         send_telegram_message(message)
-                        save_to_supabase({"code": code, "price": trade_price, "reason": "체결량 + 돌파", "timestamp": str(trade_time)})
+                        save_to_supabase({
+                            "code": code,
+                            "price": trade_price,
+                            "reason": "체결량 + 돌파",
+                            "timestamp": str(trade_time)
+                        })
 
                     prev_data[code] = {
                         "last_price": trade_price,
@@ -93,7 +104,7 @@ async def handle_socket():
             print("에러 발생:", e)
             await asyncio.sleep(1)
 
-# KRW 전체 코인 목록 불러오기
+# 업비트 KRW마켓 코인 리스트 불러오기
 async def get_all_krw_tickers():
     try:
         response = requests.get("https://api.upbit.com/v1/market/all")
@@ -103,6 +114,6 @@ async def get_all_krw_tickers():
     except:
         return ["KRW-BTC"]
 
-# 시작
+# 실행
 if __name__ == "__main__":
     asyncio.run(handle_socket())
