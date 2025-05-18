@@ -1,29 +1,29 @@
 import asyncio
 import websockets
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import requests
 from supabase import create_client
 import os
 
-# 환경변수에서 설정값 읽기
-SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip()
-SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY", "").strip()
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "").strip()
-CHAT_IDS = [int(os.getenv("TELEGRAM_CHAT_ID", "0"))]  # 여러 ID 지원 시 리스트 확장 가능
+# 환경변수
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+CHAT_IDS = [int(chat_id) for chat_id in os.getenv("TELEGRAM_CHAT_ID").split(",")]
 
-# Supabase 클라이언트 생성
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# 포착 기준 상수
-VOLUME_SPIKE_THRESHOLD = 3.5   # 체결량 증가율 기준
-PRICE_MOVE_THRESHOLD = 0.008   # 0.8% 돌파 시도 감지
-TRADE_AMOUNT_MIN = 1200000000  # 거래대금 기준 (1,200백만 원)
+# 포착 기준
+VOLUME_SPIKE_THRESHOLD = 3.5
+PRICE_MOVE_THRESHOLD = 0.008
+TRADE_AMOUNT_MIN = 1200000000
 
-# 체결 데이터 저장용
 prev_data = {}
+recent_alerts = {}  # 중복 알림 차단
+ALERT_INTERVAL = 60 * 30  # 30분
 
-# 텔레그램 전송 함수
+# 텔레그램 메시지
 def send_telegram_message(message):
     for chat_id in CHAT_IDS:
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -33,7 +33,7 @@ def send_telegram_message(message):
         except Exception as e:
             print("텔레그램 전송 오류:", e)
 
-# Supabase 저장 함수
+# Supabase 저장
 def save_to_supabase(item):
     try:
         supabase.table("messages").insert(item).execute()
@@ -41,17 +41,20 @@ def save_to_supabase(item):
     except Exception as e:
         print("❌ Supabase 삽입 실패:", e)
 
-# 코인 포착 메시지 포맷
-def build_message(code, price, reason):
-    return (
-        f"[선행급등포착]\n"
-        f"- 코인명: {code}\n"
-        f"- 현재가: {int(price)}원\n"
-        f"- 포착 사유: {reason}\n"
-        f"- 예상 수익 가능성: 높음 (선행포착)"
-    )
+# 중복 차단
+def is_duplicate_alert(code):
+    now = datetime.now()
+    last = recent_alerts.get(code)
+    if last and (now - last).total_seconds() < ALERT_INTERVAL:
+        return True
+    recent_alerts[code] = now
+    return False
 
-# WebSocket 데이터 처리
+# 메시지 포맷
+def build_message(code, price, reason):
+    return f"[선행급등포착]\n- 코인명: {code}\n- 현재가: {int(price)}원\n- 포착 사유: {reason}\n- 예상 수익 가능성: 높음 (선행포착)"
+
+# 메인 로직
 async def handle_socket():
     uri = "wss://api.upbit.com/websocket/v1"
     codes = await get_all_krw_tickers()
@@ -85,7 +88,10 @@ async def handle_socket():
                     volume_ratio = trade_volume / (prev_data[code]["last_volume"] + 1e-6)
                     price_diff_ratio = (trade_price - prev_data[code]["last_price"]) / prev_data[code]["last_price"]
 
-                    if volume_ratio > VOLUME_SPIKE_THRESHOLD or price_diff_ratio > PRICE_MOVE_THRESHOLD:
+                    if (volume_ratio > VOLUME_SPIKE_THRESHOLD or price_diff_ratio > PRICE_MOVE_THRESHOLD):
+                        if is_duplicate_alert(code):
+                            continue  # 중복 방지
+
                         message = build_message(code, trade_price, "체결량 급증 + 가격 돌파 시도")
                         send_telegram_message(message)
                         save_to_supabase({
@@ -104,7 +110,7 @@ async def handle_socket():
             print("에러 발생:", e)
             await asyncio.sleep(1)
 
-# 업비트 KRW마켓 코인 리스트 불러오기
+# KRW 코인 목록 불러오기
 async def get_all_krw_tickers():
     try:
         response = requests.get("https://api.upbit.com/v1/market/all")
