@@ -7,10 +7,10 @@ from supabase import create_client
 import os
 
 # 환경변수에서 설정값 읽기
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY")
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-CHAT_IDS = [int(os.getenv("TELEGRAM_CHAT_ID"))]  # 여러 ID 지원 시 리스트 확장 가능
+SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip()
+SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY", "").strip()
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "").strip()
+CHAT_IDS = [int(os.getenv("TELEGRAM_CHAT_ID", "0"))]  # 여러 ID 지원 시 리스트 확장 가능
 
 # Supabase 클라이언트 생성
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
