@@ -1,27 +1,26 @@
 from flask import Flask, request
 import requests
 import json
+import os
 from datetime import datetime
 
 app = Flask(__name__)
 
-# 텔레그램 설정
-TELEGRAM_TOKEN = "7287889681:AAGM2BXvqJSyzbCrF25hy_WzCL40Cute64A"
-CHAT_ID = "1901931119"
-
-# Supabase 설정
-SUPABASE_URL = "https://gzqpbywussubofgbsydw.supabase.co"
-SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd6cXBieXd1c3N1Ym9mZ2JzeWR3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgyMzAwMDMsImV4cCI6MjA2Mzc4NjAwM30.rkE-N_mBlSYOYQnXUTuodRCfAl6ogfwl3q-j_1xguB8"
+# 환경변수에서 설정값 불러오기
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
+CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 
 @app.route("/")
 def home():
-    return "Supabase + Telegram 연동 서버 실행 중"
+    return "환경변수 기반 Supabase + Telegram 서버 실행 중"
 
 @app.route("/send")
 def send_message():
-    message = "[통합 테스트] Supabase 기록 + Telegram 전송 성공 🎯"
+    message = "[환경변수 테스트] Supabase 기록 + Telegram 전송 성공 🎯"
 
-    # Supabase로 메시지 저장
+    # Supabase에 저장
     headers = {
         "apikey": SUPABASE_ANON_KEY,
         "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
@@ -37,7 +36,7 @@ def send_message():
         data=json.dumps(data)
     )
 
-    # 텔레그램으로 메시지 전송
+    # Telegram 전송
     telegram_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     telegram_payload = {
         "chat_id": CHAT_ID,
