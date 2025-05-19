@@ -1,171 +1,86 @@
-import os
-import json
-import time
-import threading
-from datetime import datetime, timedelta
-from collections import deque, defaultdict
-
 import requests
-import websocket
+import time
+from datetime import datetime
 from flask import Flask
+from supabase import create_client, Client
+import telegram
 
 app = Flask(__name__)
 
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+# Supabase 연동 정보
+SUPABASE_URL = "https://fqtlxtdlynrhjurnjbrp.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZxdGx4dGRseW5yaGp1cm5qYnJwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgyMDUwOTEsImV4cCI6MjA2Mzc2MTA5MX0.GK1f0PPKjCL2hZpe17NF2HfwWeDdDY1a8TbHHbWxiGA"
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-ALERT_INTERVAL = 60 * 30
-last_alert_times = {}
+# Telegram 설정 (반영 완료)
+TELEGRAM_TOKEN = "6635272196:AAFcT7o_Xx5n4ki8ZGBMLzGKg3KH7U9-R90"
+TELEGRAM_CHAT_ID = "1901931119"
+bot = telegram.Bot(token=TELEGRAM_TOKEN)
 
-trade_data = defaultdict(lambda: deque())
+# 한글 코인명 매핑 딕셔너리
 KOR_NAME_MAP = {}
-
-WS_URL = "wss://api.upbit.com/websocket/v1"
-
 
 def update_kor_name_map():
     global KOR_NAME_MAP
-    url = "https://api.upbit.com/v1/market"
-    response = requests.get(url)
-    if response.status_code == 200:
-        try:
-            market_data = response.json()
-            if isinstance(market_data, list):
-                KOR_NAME_MAP = {
-                    item["market"]: item["korean_name"]
-                    for item in market_data
-                    if item["market"].startswith("KRW-")
-                }
-        except Exception as e:
-            print("JSON 파싱 실패:", e)
-    else:
-        print("업비트 마켓 리스트 API 호출 실패")
+    try:
+        res = requests.get("https://api.upbit.com/v1/market/all").json()
+        KOR_NAME_MAP = {
+            item["market"]: item["korean_name"]
+            for item in res if item["market"].startswith("KRW-")
+        }
+        print("✅ 한글 코인명 매핑 완료")
+    except Exception as e:
+        print("⚠️ 한글 코인명 매핑 실패:", e)
 
+def get_current_time_kst():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-def get_kor_name(market):
-    return KOR_NAME_MAP.get(market, "")
-
-
-def send_telegram_message(text):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": text})
-
-
-def save_to_supabase(message):
-    headers = {
-        "apikey": SUPABASE_ANON_KEY,
-        "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
-        "Content-Type": "application/json",
-        "Prefer": "return=representation"
+def save_message_to_supabase(message: str):
+    data = {
+        "content": message,
+        "created_at": get_current_time_kst()
     }
-    requests.post(f"{SUPABASE_URL}/rest/v1/messages", headers=headers, json={"content": message})
+    supabase.table("messages").insert(data).execute()
+    print("✅ Supabase 저장 완료")
 
+def send_telegram_message(message: str):
+    bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
+    print("✅ 텔레그램 전송 완료")
 
-def should_alert(market, category):
-    now = time.time()
-    key = f"{market}_{category}"
-    if key not in last_alert_times or now - last_alert_times[key] > ALERT_INTERVAL:
-        last_alert_times[key] = now
-        return True
-    return False
+def build_coin_message(market: str, current_price: float, buy_range: tuple, target_price: float, expected_rate: float, minutes: int, reason: str):
+    korean_name = KOR_NAME_MAP.get(market, "알 수 없음")
+    message = f"""[추천코인1]
+- 코인명: {market.replace("KRW-", "")} ({korean_name})
+- 현재가: {int(current_price)}원
+- 매수 추천가: {int(buy_range[0])} ~ {int(buy_range[1])}원
+- 목표 매도가: {int(target_price)}원
+- 예상 수익률: {expected_rate}%
+- 예상 소요 시간: {minutes}분
+- 추천 이유: {reason}
+[선행급등포착]
+https://upbit.com/exchange?code=CRIX.UPBIT.{market}
+"""
+    return message
 
+def predict_and_alert():
+    # 예시 데이터
+    market = "KRW-SAND"
+    current_price = 516.0
+    buy_range = (512, 518)
+    target_price = 540.0
+    expected_rate = 4.6
+    minutes = 5
+    reason = "체결량 급증 + 매수 강세 포착"
 
-def fetch_krw_markets():
-    resp = requests.get("https://api.upbit.com/v1/market")
-    return [m["market"] for m in resp.json() if m["market"].startswith("KRW-")]
-
-
-def on_open(ws):
-    markets = fetch_krw_markets()
-    subscribe = [{"ticket": "ticker"}, {"type": "trade", "codes": markets}, {"format": "SIMPLE"}]
-    ws.send(json.dumps(subscribe))
-
-
-def on_message(ws, message):
-    msg = json.loads(message)
-    _, market, timestamp, price, side, volume = msg
-    now = datetime.now()
-    trade_data[market].append((now, price, side, volume))
-    cutoff = now - timedelta(minutes=3)
-    dq = trade_data[market]
-    while dq and dq[0][0] < cutoff:
-        dq.popleft()
-
-
-def start_ws():
-    ws = websocket.WebSocketApp(WS_URL, on_open=on_open, on_message=on_message)
-    ws.run_forever()
-
-
-def analyze_and_alert():
-    while True:
-        now = datetime.now()
-        for market, dq in trade_data.items():
-            if not dq:
-                continue
-            data = list(dq)
-            prices = [p for _, p, _, _ in data]
-            volumes = [v for _, _, _, v in data]
-            sides = [s for _, _, s, _ in data]
-
-            t10 = [v for t, _, _, v in data if t > now - timedelta(seconds=10)]
-            t60 = [v for t, _, _, v in data if now - timedelta(seconds=70) < t <= now - timedelta(seconds=10)]
-            vol_ratio = (sum(t10) / (sum(t60)/6)) if t60 else 0
-
-            buy_vol = sum(v for t, _, s, v in data if s == 'BID')
-            total_vol = sum(volumes)
-            buy_ratio = buy_vol / total_vol if total_vol else 0
-
-            high3 = max(prices)
-            curr_price = prices[-1]
-            is_breaking = curr_price >= high3 * 0.995
-
-            highs = prices[-6:]
-            lows = prices[-6:]
-            band1 = max(highs) - min(lows)
-            band3 = max(prices) - min(prices)
-            volatility = 'expanding' if band1 > band3 * 0.5 else 'stable'
-
-            slope = (prices[-1] - prices[0]) / prices[0]
-            prediction = 'UP' if slope > 0.001 else 'HOLD'
-
-            conds = [vol_ratio > 2.0, buy_ratio > 0.7, is_breaking, volatility == 'expanding', prediction == 'UP']
-            if sum(conds) >= 3 and should_alert(market, 'rise'):
-                kor = get_kor_name(market)
-                msg = (
-                    f"[추천코인1]\n"
-                    f"- 코인명: {market.replace('KRW-','')} ({kor})\n"
-                    f"- 현재가: {curr_price:,.0f}원\n"
-                    f"- 매수 추천가: {curr_price:,.0f} ~ {curr_price*1.01:,.0f}원\n"
-                    f"- 목표 매도가: {curr_price*1.03:,.0f}원\n"
-                    f"- 예상 수익률: 3% 이상\n"
-                    f"- 예상 소요 시간: 10~30분\n"
-                    f"- 추천 이유: 체결량 증가율 {vol_ratio:.2f}배 + 매수강도 {buy_ratio:.2f}\n"
-                    f"[선행급등포착]\n"
-                    f"https://upbit.com/exchange?code=CRIX.UPBIT.{market}"
-                )
-                send_telegram_message(msg)
-                save_to_supabase(msg)
-        time.sleep(5)
-
-
-def status_ping():
-    while True:
-        msg = f"[서버 정상작동 확인]\n현재 시각: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n시스템은 정상 작동 중입니다."
-        send_telegram_message(msg)
-        time.sleep(60 * 120)
-
+    message = build_coin_message(market, current_price, buy_range, target_price, expected_rate, minutes, reason)
+    send_telegram_message(message)
+    save_message_to_supabase(message)
 
 @app.route("/")
-def home():
-    return f"[Server Running] {datetime.now():%Y-%m-%d %H:%M:%S}"
-
+def index():
+    return "🔥 선행포착 서버 실행 중"
 
 if __name__ == "__main__":
     update_kor_name_map()
-    threading.Thread(target=start_ws, daemon=True).start()
-    threading.Thread(target=analyze_and_alert, daemon=True).start()
-    threading.Thread(target=status_ping, daemon=True).start()
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
+    predict_and_alert()
+    app.run(host="0.0.0.0", port=10000)
