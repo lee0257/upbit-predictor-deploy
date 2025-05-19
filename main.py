@@ -12,8 +12,8 @@ SUPABASE_URL = "https://fqtlxtdlynrhjurnjbrp.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZxdGx4dGRseW5yaGp1cm5qYnJwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgyMDUwOTEsImV4cCI6MjA2Mzc2MTA5MX0.GK1f0PPKjCL2hZpe17NF2HfwWeDdDY1a8TbHHbWxiGA"
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# Telegram 설정 (반영 완료)
-TELEGRAM_TOKEN = "6635272196:AAFcT7o_Xx5n4ki8ZGBMLzGKg3KH7U9-R90"
+# Telegram 설정 (새 토큰 반영)
+TELEGRAM_TOKEN = "7287889681:AAGM2BXvqJSyzbCrF25hy_WzCL40Cute64A"
 TELEGRAM_CHAT_ID = "1901931119"
 bot = telegram.Bot(token=TELEGRAM_TOKEN)
 
@@ -63,7 +63,7 @@ https://upbit.com/exchange?code=CRIX.UPBIT.{market}
     return message
 
 def predict_and_alert():
-    # 예시 데이터
+    # 예시
     market = "KRW-SAND"
     current_price = 516.0
     buy_range = (512, 518)
