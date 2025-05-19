@@ -6,31 +6,27 @@ from datetime import datetime, timedelta
 import telegram
 from supabase import create_client, Client
 import pytz
-import time
 
-# 기본 설정
+# ✅ 설정값
 SUPABASE_URL = "https://gzqpbywussubofgbsydw.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-TELEGRAM_TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"
-TELEGRAM_CHAT_IDS = [1901931119]  # 친구 ID 제외됨
+TELEGRAM_TOKEN = "6288172849:AAHqYrKz_k7J_jqH19b7bLJ9fuw98FxiYxU"  # ✅ 형의 lee0257_bot 토큰
+TELEGRAM_CHAT_IDS = [1901931119]  # 친구 제외 완료
 korea = pytz.timezone('Asia/Seoul')
 
-# Telegram, Supabase 설정
+# ✅ 기본 객체 설정
 bot = telegram.Bot(token=TELEGRAM_TOKEN)
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# 한글 코인명 매핑 (일부 예시, 전체는 코드에서 자동 수집 가능)
 KOREAN_NAMES = {
     "KRW-SUI": "수이",
     "KRW-HIFI": "하이파이",
     "KRW-ORBS": "오브스",
-    # ... 전체 종목 자동 매핑 필요
+    # 전체 종목 자동 수집은 이후 확장
 }
 
-# 최근 전송 기록
 last_sent = {}
 
-# 중복 차단 로직
 def is_duplicate(market, now):
     key = f"{market}"
     if key in last_sent and (now - last_sent[key]).total_seconds() < 1800:
@@ -38,7 +34,6 @@ def is_duplicate(market, now):
     last_sent[key] = now
     return False
 
-# 실시간 현재가 가져오기
 def get_current_price(market):
     try:
         url = f"https://api.upbit.com/v1/ticker?markets={market}"
@@ -47,7 +42,6 @@ def get_current_price(market):
     except:
         return None
 
-# Telegram + Supabase 메시지 전송
 def send_alert(market, price, reason):
     now = datetime.now(korea)
     if is_duplicate(market, now):
@@ -84,11 +78,10 @@ https://upbit.com/exchange?code=CRIX.UPBIT.{market}"""
         "timestamp": now.isoformat()
     }).execute()
 
-# 체결 데이터 분석
 async def handle_socket():
     url = "wss://api.upbit.com/websocket/v1"
     subscribe = [{"ticket": "test"},
-                 {"type": "trade", "codes": ["KRW-BTC", "KRW-SUI", "KRW-HIFI", "KRW-ORBS"]},  # 전체 종목 적용 가능
+                 {"type": "trade", "codes": ["KRW-SUI", "KRW-HIFI", "KRW-ORBS"]},
                  {"format": "DEFAULT"}]
 
     async with websockets.connect(url) as ws:
@@ -104,24 +97,21 @@ async def handle_socket():
                 volume = data["trade_volume"]
                 timestamp = datetime.fromtimestamp(data["timestamp"] / 1000, tz=korea)
 
-                # 체결량 누적
                 if market not in volume_dict:
                     volume_dict[market] = []
                 volume_dict[market].append((timestamp, volume))
 
-                # 최근 30초 내 체결량 기준
                 cutoff = timestamp - timedelta(seconds=30)
                 volume_dict[market] = [v for v in volume_dict[market] if v[0] >= cutoff]
                 total_volume = sum(v[1] for v in volume_dict[market])
 
-                if total_volume > 20000:  # 포착 조건
+                if total_volume > 20000:
                     send_alert(market, price, "체결량 급증 + 매수 강세 포착")
 
             except Exception as e:
                 print("WebSocket 오류:", e)
                 continue
 
-# 상태 메시지 2시간마다
 async def status_message():
     while True:
         now = datetime.now(korea).strftime("%Y-%m-%d %H:%M:%S")
@@ -129,7 +119,6 @@ async def status_message():
             bot.send_message(chat_id, f"[상태] 서버 작동 중 - {now}")
         await asyncio.sleep(7200)
 
-# 실행
 async def main():
     await asyncio.gather(handle_socket(), status_message())
 
