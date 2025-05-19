@@ -4,7 +4,7 @@ import time
 from flask import Flask
 from datetime import datetime
 from threading import Thread
-from upbit_realtime_collector import get_realtime_data  # 사용자 정의 모듈로 가정
+import random
 
 app = Flask(__name__)
 
@@ -43,6 +43,28 @@ def should_alert(coin, category):
     return False
 
 
+def get_realtime_data():
+    # 가상 테스트 데이터 생성 (실제 환경에서는 WebSocket 또는 REST API 연동 필요)
+    sample_coins = ['SUI', 'ARB', 'HIFI', 'STRK']
+    result = {}
+    for coin in sample_coins:
+        price = random.uniform(700, 750)
+        volume = random.randint(80000000, 150000000)
+        buy_ratio = random.uniform(0.6, 0.9)
+        prediction = 'UP' if buy_ratio > 0.75 and volume > 100000000 else 'HOLD'
+        pattern = random.choice(['', 'bottoming', 'whale_buy'])
+
+        result[coin] = {
+            'price': price,
+            'volume': volume,
+            'change': random.uniform(-4, 4),
+            'buy_volume_ratio': buy_ratio,
+            'prediction': prediction,
+            'pattern': pattern
+        }
+    return result
+
+
 def analyze_and_alert():
     while True:
         data = get_realtime_data()
@@ -53,28 +75,29 @@ def analyze_and_alert():
             change = data[coin]['change']
             prediction = data[coin].get('prediction', None)
             pattern = data[coin].get('pattern', '')
+            buy_ratio = data[coin].get('buy_volume_ratio', 0)
 
             # 선행급등포착
-            if prediction == 'UP' and volume > 100000000 and should_alert(coin, 'rise'):
-                message = f"[추천코인1]\n- 코인명: {coin}\n- 현재가: {price:,}원\n- 매수 추천가: {price:,} ~ {price*1.01:,.0f}원\n- 목표 매도가: {price*1.03:,.0f}원\n- 예상 수익률: 3% 이상\n- 예상 소요 시간: 10~30분\n- 추천 이유: 체결량 급증 + 매수 강세 포착\n[선행급등포착]\nhttps://upbit.com/exchange?code=CRIX.UPBIT.KRW-{coin}"
+            if prediction == 'UP' and volume > 100000000 and buy_ratio > 0.75 and should_alert(coin, 'rise'):
+                message = f"[추천코인1]\n- 코인명: {coin}\n- 현재가: {price:,.0f}원\n- 매수 추천가: {price:,.0f} ~ {price*1.01:,.0f}원\n- 목표 매도가: {price*1.03:,.0f}원\n- 예상 수익률: 3% 이상\n- 예상 소요 시간: 10~30분\n- 추천 이유: 체결량 급증 + 매수 강세 포착\n[선행급등포착]\nhttps://upbit.com/exchange?code=CRIX.UPBIT.KRW-{coin}"
                 send_telegram_message(message)
                 save_to_supabase(message)
 
             # 급락감지
             elif change <= -3.0 and volume > 80000000 and should_alert(coin, 'drop'):
-                message = f"[급락감지]\n- 코인명: {coin}\n- 현재가: {price:,}원\n- 3% 이상 단기 급락 발생\n- 매도세 급증 가능성 존재\nhttps://upbit.com/exchange?code=CRIX.UPBIT.KRW-{coin}"
+                message = f"[급락감지]\n- 코인명: {coin}\n- 현재가: {price:,.0f}원\n- 3% 이상 단기 급락 발생\n- 매도세 급증 가능성 존재\nhttps://upbit.com/exchange?code=CRIX.UPBIT.KRW-{coin}"
                 send_telegram_message(message)
                 save_to_supabase(message)
 
             # 바닥다지기 패턴
             elif pattern == 'bottoming' and should_alert(coin, 'bottom'):
-                message = f"[바닥다지기]\n- 코인명: {coin}\n- 현재가: {price:,}원\n- 저점 횡보 + 거래량 감소\n- 반등 가능성 포착\nhttps://upbit.com/exchange?code=CRIX.UPBIT.KRW-{coin}"
+                message = f"[바닥다지기]\n- 코인명: {coin}\n- 현재가: {price:,.0f}원\n- 저점 횡보 + 거래량 감소\n- 반등 가능성 포착\nhttps://upbit.com/exchange?code=CRIX.UPBIT.KRW-{coin}"
                 send_telegram_message(message)
                 save_to_supabase(message)
 
             # 세력포착
             elif pattern == 'whale_buy' and should_alert(coin, 'whale'):
-                message = f"[세력포착]\n- 코인명: {coin}\n- 현재가: {price:,}원\n- 반복 매수 포착\n- 대량 자금 유입 징후\nhttps://upbit.com/exchange?code=CRIX.UPBIT.KRW-{coin}"
+                message = f"[세력포착]\n- 코인명: {coin}\n- 현재가: {price:,.0f}원\n- 반복 매수 포착\n- 대량 자금 유입 징후\nhttps://upbit.com/exchange?code=CRIX.UPBIT.KRW-{coin}"
                 send_telegram_message(message)
                 save_to_supabase(message)
 
