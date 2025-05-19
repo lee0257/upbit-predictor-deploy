@@ -6,12 +6,13 @@ from datetime import datetime, timedelta
 import telegram
 from supabase import create_client, Client
 import pytz
+import os
 
-# ✅ 설정값
-SUPABASE_URL = "https://gzqpbywussubofgbsydw.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-TELEGRAM_TOKEN = "6288172849:AAHqYrKz_k7J_jqH19b7bLJ9fuw98FxiYxU"  # ✅ 형의 lee0257_bot 토큰
-TELEGRAM_CHAT_IDS = [1901931119]  # 친구 제외 완료
+# ✅ 환경변수에서 값 읽어오기
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_ANON_KEY")  # ✅ 여기 수정됨!
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
+TELEGRAM_CHAT_IDS = [int(os.environ.get("TELEGRAM_CHAT_ID", "1901931119"))]
 korea = pytz.timezone('Asia/Seoul')
 
 # ✅ 기본 객체 설정
@@ -22,7 +23,7 @@ KOREAN_NAMES = {
     "KRW-SUI": "수이",
     "KRW-HIFI": "하이파이",
     "KRW-ORBS": "오브스",
-    # 전체 종목 자동 수집은 이후 확장
+    # 전체 종목 매핑은 추후 자동화
 }
 
 last_sent = {}
