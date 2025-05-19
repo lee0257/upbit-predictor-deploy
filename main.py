@@ -1,53 +1,43 @@
-from flask import Flask, request
-import requests
-import json
 import os
+import requests
+from flask import Flask
 from datetime import datetime
 
 app = Flask(__name__)
 
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
-CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
-SUPABASE_URL = os.environ.get("SUPABASE_URL")
-SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 @app.route("/")
 def home():
-    return "🔥 업비트 예측기 서버 정상 작동 중입니다!"
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    message = f"[Render 작동 확인] {now}"
 
-@app.route("/send")
-def send_message():
-    try:
-        message = "[환경변수 테스트] Supabase 기록 + Telegram 전송 성공 🎯"
-        headers = {
+    # Supabase 메시지 전송
+    supabase_response = requests.post(
+        f"{SUPABASE_URL}/rest/v1/messages",
+        headers={
             "apikey": SUPABASE_ANON_KEY,
             "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
             "Content-Type": "application/json",
-        }
-        data = {
-            "message": message,
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        supabase_res = requests.post(
-            f"{SUPABASE_URL}/rest/v1/messages",
-            headers=headers,
-            data=json.dumps(data)
-        )
-        telegram_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-        telegram_payload = {
-            "chat_id": CHAT_ID,
-            "text": message
-        }
-        telegram_res = requests.post(telegram_url, data=telegram_payload)
+            "Prefer": "return=representation"
+        },
+        json={"message": message}
+    )
 
-        return {
-            "supabase_status": supabase_res.status_code,
-            "telegram_status": telegram_res.status_code,
-            "message": message
-        }
+    # Telegram 메시지 전송
+    telegram_response = requests.post(
+        f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
+        json={"chat_id": TELEGRAM_CHAT_ID, "text": message}
+    )
 
-    except Exception as e:
-        return {"error": str(e)}, 500
+    return {
+        "message": message,
+        "supabase_status": supabase_response.status_code,
+        "telegram_status": telegram_response.status_code
+    }
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000)
+    app.run(debug=True)
