@@ -1,13 +1,13 @@
 import requests
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import Flask
 from supabase import create_client, Client
 import telegram
 
 app = Flask(__name__)
 
-# ✅ Supabase 연동 정보 (최종)
+# ✅ Supabase 연동 정보
 SUPABASE_URL = "https://gzqpbywussubofgbsydw.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd6cXBieXd1c3N1Ym9mZ2JzeWR3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc1ODkzODIsImV4cCI6MjA2MzE2NTM4Mn0.jaMY_QSclIr50958NCpCv9CVt6Do50K_PHOvii0rArc"
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -35,8 +35,21 @@ def update_kor_name_map():
 def get_current_time_kst():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+def is_duplicate_message(message: str) -> bool:
+    thirty_minutes_ago = (datetime.now() - timedelta(minutes=30)).isoformat()
+    result = supabase.table("messages") \
+        .select("*") \
+        .gte("created_at", thirty_minutes_ago) \
+        .eq("content", message) \
+        .execute()
+    return len(result.data) > 0
+
 def save_message_to_supabase(message: str):
+    if is_duplicate_message(message):
+        print("⚠️ 중복 메시지 - 저장/전송 생략")
+        return
     data = {
+        "message": message,
         "content": message,
         "created_at": get_current_time_kst()
     }
