@@ -28,8 +28,20 @@ WS_URL = "wss://api.upbit.com/websocket/v1"
 def update_kor_name_map():
     global KOR_NAME_MAP
     url = "https://api.upbit.com/v1/market"
-    res = requests.get(url).json()
-    KOR_NAME_MAP = {item['market']: item['korean_name'] for item in res if item['market'].startswith("KRW-")}
+    response = requests.get(url)
+    if response.status_code == 200:
+        try:
+            market_data = response.json()
+            if isinstance(market_data, list):
+                KOR_NAME_MAP = {
+                    item["market"]: item["korean_name"]
+                    for item in market_data
+                    if item["market"].startswith("KRW-")
+                }
+        except Exception as e:
+            print("JSON 파싱 실패:", e)
+    else:
+        print("업비트 마켓 리스트 API 호출 실패")
 
 
 def get_kor_name(market):
@@ -143,7 +155,7 @@ def status_ping():
     while True:
         msg = f"[서버 정상작동 확인]\n현재 시각: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n시스템은 정상 작동 중입니다."
         send_telegram_message(msg)
-        time.sleep(60 * 120)  # 2시간마다
+        time.sleep(60 * 120)
 
 
 @app.route("/")
