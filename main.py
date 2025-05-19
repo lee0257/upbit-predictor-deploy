@@ -3,7 +3,6 @@ import os
 from supabase import create_client, Client
 import telegram
 from flask import Flask
-import time
 from datetime import datetime
 
 # 환경 변수에서 설정 불러오기
