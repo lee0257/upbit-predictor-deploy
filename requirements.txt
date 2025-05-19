@@ -1,5 +1,2 @@
-
-flask
 requests
 supabase
-python-telegram-bot==13.15
