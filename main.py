@@ -1,99 +1,137 @@
+import asyncio
+import websockets
+import json
 import requests
-import time
 from datetime import datetime, timedelta
-from flask import Flask
-from supabase import create_client, Client
 import telegram
+from supabase import create_client, Client
+import pytz
+import time
 
-app = Flask(__name__)
-
-# ✅ Supabase 연동 정보
+# 기본 설정
 SUPABASE_URL = "https://gzqpbywussubofgbsydw.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd6cXBieXd1c3N1Ym9mZ2JzeWR3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc1ODkzODIsImV4cCI6MjA2MzE2NTM4Mn0.jaMY_QSclIr50958NCpCv9CVt6Do50K_PHOvii0rArc"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+TELEGRAM_TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"
+TELEGRAM_CHAT_IDS = [1901931119]  # 친구 ID 제외됨
+korea = pytz.timezone('Asia/Seoul')
+
+# Telegram, Supabase 설정
+bot = telegram.Bot(token=TELEGRAM_TOKEN)
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# ✅ Telegram 설정
-TELEGRAM_TOKEN = "7287889681:AAGM2BXvqJSyzbCrF25hy_WzCL40Cute64A"
-TELEGRAM_CHAT_ID = "1901931119"
-bot = telegram.Bot(token=TELEGRAM_TOKEN)
+# 한글 코인명 매핑 (일부 예시, 전체는 코드에서 자동 수집 가능)
+KOREAN_NAMES = {
+    "KRW-SUI": "수이",
+    "KRW-HIFI": "하이파이",
+    "KRW-ORBS": "오브스",
+    # ... 전체 종목 자동 매핑 필요
+}
 
-# ✅ 한글 코인명 매핑용 전역 딕셔너리
-KOR_NAME_MAP = {}
+# 최근 전송 기록
+last_sent = {}
 
-def update_kor_name_map():
-    global KOR_NAME_MAP
+# 중복 차단 로직
+def is_duplicate(market, now):
+    key = f"{market}"
+    if key in last_sent and (now - last_sent[key]).total_seconds() < 1800:
+        return True
+    last_sent[key] = now
+    return False
+
+# 실시간 현재가 가져오기
+def get_current_price(market):
     try:
-        res = requests.get("https://api.upbit.com/v1/market/all").json()
-        KOR_NAME_MAP = {
-            item["market"]: item["korean_name"]
-            for item in res if item["market"].startswith("KRW-")
-        }
-        print("✅ 한글 코인명 매핑 완료")
-    except Exception as e:
-        print("⚠️ 한글 코인명 매핑 실패:", e)
+        url = f"https://api.upbit.com/v1/ticker?markets={market}"
+        res = requests.get(url)
+        return res.json()[0]["trade_price"]
+    except:
+        return None
 
-def get_current_time_kst():
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-def is_duplicate_message(message: str) -> bool:
-    thirty_minutes_ago = (datetime.now() - timedelta(minutes=30)).isoformat()
-    result = supabase.table("messages") \
-        .select("*") \
-        .gte("created_at", thirty_minutes_ago) \
-        .eq("content", message) \
-        .execute()
-    return len(result.data) > 0
-
-def save_message_to_supabase(message: str):
-    if is_duplicate_message(message):
-        print("⚠️ 중복 메시지 - 저장/전송 생략")
+# Telegram + Supabase 메시지 전송
+def send_alert(market, price, reason):
+    now = datetime.now(korea)
+    if is_duplicate(market, now):
         return
-    data = {
-        "message": message,
-        "content": message,
-        "created_at": get_current_time_kst()
-    }
-    supabase.table("messages").insert(data).execute()
-    print("✅ Supabase 저장 완료")
 
-def send_telegram_message(message: str):
-    bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
-    print("✅ 텔레그램 전송 완료")
+    name_kr = KOREAN_NAMES.get(market, market)
+    current_price = get_current_price(market)
+    if not current_price:
+        return
 
-def build_coin_message(market: str, current_price: float, buy_range: tuple, target_price: float, expected_rate: float, minutes: int, reason: str):
-    korean_name = KOR_NAME_MAP.get(market, "알 수 없음")
-    message = f"""[추천코인1]
-- 코인명: {market.replace("KRW-", "")} ({korean_name})
-- 현재가: {int(current_price)}원
-- 매수 추천가: {int(buy_range[0])} ~ {int(buy_range[1])}원
-- 목표 매도가: {int(target_price)}원
-- 예상 수익률: {expected_rate}%
-- 예상 소요 시간: {minutes}분
+    buy_price_min = int(current_price * 0.985)
+    buy_price_max = int(current_price * 1.005)
+    target_price = int(current_price * 1.03)
+    return_rate = round((target_price - current_price) / current_price * 100, 2)
+
+    msg = f"""[추천코인1]
+- 코인명: {name_kr} ({market.split('-')[1]})
+- 현재가: {current_price:,}원
+- 매수 추천가: {buy_price_min:,} ~ {buy_price_max:,}원
+- 목표 매도가: {target_price:,}원
+- 예상 수익률: {return_rate}%
+- 예상 소요 시간: 10~30분
 - 추천 이유: {reason}
 [선행급등포착]
-https://upbit.com/exchange?code=CRIX.UPBIT.{market}
-"""
-    return message
+https://upbit.com/exchange?code=CRIX.UPBIT.{market}"""
 
-def predict_and_alert():
-    # 테스트용 예시 메시지
-    market = "KRW-SAND"
-    current_price = 516.0
-    buy_range = (512, 518)
-    target_price = 540.0
-    expected_rate = 4.6
-    minutes = 5
-    reason = "체결량 급증 + 매수 강세 포착"
+    for chat_id in TELEGRAM_CHAT_IDS:
+        bot.send_message(chat_id=chat_id, text=msg)
 
-    message = build_coin_message(market, current_price, buy_range, target_price, expected_rate, minutes, reason)
-    send_telegram_message(message)
-    save_message_to_supabase(message)
+    supabase.table("messages").insert({
+        "market": market,
+        "price": current_price,
+        "message": msg,
+        "timestamp": now.isoformat()
+    }).execute()
 
-@app.route("/")
-def index():
-    return "🔥 선행포착 서버 실행 중"
+# 체결 데이터 분석
+async def handle_socket():
+    url = "wss://api.upbit.com/websocket/v1"
+    subscribe = [{"ticket": "test"},
+                 {"type": "trade", "codes": ["KRW-BTC", "KRW-SUI", "KRW-HIFI", "KRW-ORBS"]},  # 전체 종목 적용 가능
+                 {"format": "DEFAULT"}]
+
+    async with websockets.connect(url) as ws:
+        await ws.send(json.dumps(subscribe))
+        volume_dict = {}
+
+        while True:
+            try:
+                raw = await ws.recv()
+                data = json.loads(raw)
+                market = data["code"]
+                price = data["trade_price"]
+                volume = data["trade_volume"]
+                timestamp = datetime.fromtimestamp(data["timestamp"] / 1000, tz=korea)
+
+                # 체결량 누적
+                if market not in volume_dict:
+                    volume_dict[market] = []
+                volume_dict[market].append((timestamp, volume))
+
+                # 최근 30초 내 체결량 기준
+                cutoff = timestamp - timedelta(seconds=30)
+                volume_dict[market] = [v for v in volume_dict[market] if v[0] >= cutoff]
+                total_volume = sum(v[1] for v in volume_dict[market])
+
+                if total_volume > 20000:  # 포착 조건
+                    send_alert(market, price, "체결량 급증 + 매수 강세 포착")
+
+            except Exception as e:
+                print("WebSocket 오류:", e)
+                continue
+
+# 상태 메시지 2시간마다
+async def status_message():
+    while True:
+        now = datetime.now(korea).strftime("%Y-%m-%d %H:%M:%S")
+        for chat_id in TELEGRAM_CHAT_IDS:
+            bot.send_message(chat_id, f"[상태] 서버 작동 중 - {now}")
+        await asyncio.sleep(7200)
+
+# 실행
+async def main():
+    await asyncio.gather(handle_socket(), status_message())
 
 if __name__ == "__main__":
-    update_kor_name_map()
-    predict_and_alert()
-    app.run(host="0.0.0.0", port=10000)
+    asyncio.run(main())
