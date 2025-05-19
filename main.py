@@ -7,17 +7,17 @@ import telegram
 
 app = Flask(__name__)
 
-# Supabase 연동 정보
-SUPABASE_URL = "https://fqtlxtdlynrhjurnjbrp.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZxdGx4dGRseW5yaGp1cm5qYnJwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgyMDUwOTEsImV4cCI6MjA2Mzc2MTA5MX0.GK1f0PPKjCL2hZpe17NF2HfwWeDdDY1a8TbHHbWxiGA"
+# ✅ Supabase 연동 정보 (최종)
+SUPABASE_URL = "https://gzqpbywussubofgbsydw.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd6cXBieXd1c3N1Ym9mZ2JzeWR3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc1ODkzODIsImV4cCI6MjA2MzE2NTM4Mn0.jaMY_QSclIr50958NCpCv9CVt6Do50K_PHOvii0rArc"
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# Telegram 설정 (새 토큰 반영)
+# ✅ Telegram 설정
 TELEGRAM_TOKEN = "7287889681:AAGM2BXvqJSyzbCrF25hy_WzCL40Cute64A"
 TELEGRAM_CHAT_ID = "1901931119"
 bot = telegram.Bot(token=TELEGRAM_TOKEN)
 
-# 한글 코인명 매핑 딕셔너리
+# ✅ 한글 코인명 매핑용 전역 딕셔너리
 KOR_NAME_MAP = {}
 
 def update_kor_name_map():
@@ -63,7 +63,7 @@ https://upbit.com/exchange?code=CRIX.UPBIT.{market}
     return message
 
 def predict_and_alert():
-    # 예시
+    # 테스트용 예시 메시지
     market = "KRW-SAND"
     current_price = 516.0
     buy_range = (512, 518)
