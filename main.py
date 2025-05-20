@@ -10,8 +10,8 @@ from supabase import create_client, Client
 print("[DEBUG] 실행 시작", flush=True)
 print("Python 버전:", sys.version, flush=True)
 
-SUPABASE_URL = "https://hqwyfqccghosrgynckhr.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzIiwicmVmIjoiaHF3eWZxY2NnaG9zcmd5bmNraHIiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTc0ODI4MTI5NywiZXhwIjoyMDYzODM3Mjk3fQ.f2HGMZd2IgyN0Pb4iTkEflxFeI0af_8jAjz8W7zN6c8"
+SUPABASE_URL = "https://vjdjdqxtvzehshhiurkk.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzIiwicmVmIjoidmpkamRxeHR2emVoc2hoaXVya2siLCJyb2xlIjoiYW5vbiIsImlhdCI6MTc0ODA0NjYyNCwiZXhwIjoyMDYzNjAyNjI0fQ.q3QgdlnA3q3yJlxnl41RKOsDNwtGsvYNYeQ-mCFlVu8"
 TELEGRAM_TOKEN = "6383142222:AAGgC5I1-F6sMArX9M4Tx8VtIHHr-hh1pHo"
 TELEGRAM_IDS = [1901931119]
 
@@ -43,15 +43,19 @@ def already_sent_recently(market):
         print("[중복 확인 오류]", e, flush=True)
     return False
 
-async def send_message(msg):
+def send_telegram_message(msg):
     for uid in TELEGRAM_IDS:
         try:
-            requests.post(
+            response = requests.post(
                 f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
                 data={"chat_id": uid, "text": msg}
             )
+            if response.status_code == 200:
+                print(f"[텔레그램 성공] {uid}에게 메시지 도착", flush=True)
+            else:
+                print(f"[텔레그램 실패] 응답 코드: {response.status_code}, 내용: {response.text}", flush=True)
         except Exception as e:
-            print("[텔레그램 전송 오류]", e, flush=True)
+            print(f"[텔레그램 예외] {e}", flush=True)
 
 async def notify_recommendation(market, price, reason):
     coin_name = market.replace("KRW-", "")
@@ -65,7 +69,7 @@ async def notify_recommendation(market, price, reason):
 
     msg = f"[추천코인1]\n- 코인명: {coin_name} ({korean_name})\n- 현재가: {int(price)}원\n- 매수 추천가: {buy_price_range}원\n- 목표 매도가: {target_price}원\n- 예상 수익률: {profit_rate}%\n- 예상 소요 시간: {expected_time}\n- 추천 이유: {reason}\n[선행급등포착]"
 
-    await send_message(msg)
+    send_telegram_message(msg)
 
     try:
         supabase.table("messages").insert({
@@ -81,13 +85,13 @@ async def send_alive_message():
     while True:
         now = datetime.datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")
         msg = f"✅ 서버 정상 작동 중입니다 ({now} 기준)"
-        await send_message(msg)
+        send_telegram_message(msg)
         print(f"[상태메시지] {msg}", flush=True)
         await asyncio.sleep(7200)
 
 async def send_test_message():
     msg = "✅ 텔레그램 연결 테스트 메시지입니다. 봇이 정상 작동 중입니다."
-    await send_message(msg)
+    send_telegram_message(msg)
     print("[DEBUG] 텔레그램 테스트 메시지 전송 완료", flush=True)
 
 async def main():
@@ -96,7 +100,6 @@ async def main():
     await send_test_message()
     asyncio.create_task(send_alive_message())
 
-    # 조건 강제 추천용 더미 실행 (1회성)
     dummy_market = "KRW-XRP"
     dummy_price = 715
     if not already_sent_recently(dummy_market):
