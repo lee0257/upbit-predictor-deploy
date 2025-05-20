@@ -1,12 +1,19 @@
-
 from datetime import datetime
-from postgrest.exceptions import APIError
-from supabase import create_client
 import os
+from supabase import create_client
+from postgrest.exceptions import APIError
 
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+print("[환경변수 디버깅]")
+print("SUPABASE_URL:", os.getenv("SUPABASE_URL"))
+print("SUPABASE_KEY:", os.getenv("SUPABASE_KEY"))
+
+supabase_url = os.getenv("SUPABASE_URL")
+supabase_key = os.getenv("SUPABASE_KEY")
+
+if not supabase_key:
+    raise Exception("환경변수 SUPABASE_KEY가 코드에서 감지되지 않음")
+
+supabase = create_client(supabase_url, supabase_key)
 
 def log_supabase_status():
     try:
