@@ -35,7 +35,7 @@ def log_supabase_status():
     try:
         supabase = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
         response = supabase.table("messages").insert({
-            "message": "✅ 자동화 안전성 점검: DB 삽입 테스트"
+            "message": "✅ 실전버전: Supabase 삽입 성공"
         }).execute()
         print("[DB 삽입 성공]", response)
     except Exception as e:
@@ -44,4 +44,4 @@ def log_supabase_status():
 
 if __name__ == "__main__":
     log_supabase_status()
-    asyncio.run(send_message("✅ 시스템 정상 작동 중입니다. 키/토큰 유효 확인 완료"))
+    asyncio.run(send_message("✅ 시스템 최종 안정화 완료: 메시지 + DB 삽입"))
