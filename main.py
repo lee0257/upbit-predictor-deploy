@@ -1,40 +1,48 @@
-from datetime import datetime
 import os
-from supabase import create_client
-from postgrest.exceptions import APIError
+from datetime import datetime
+from supabase import create_client, Client
+import time
+import requests
 
+# 환경변수에서 Supabase 정보 불러오기
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+
+# 디버깅 출력
 print("[환경변수 디버깅]")
-print("SUPABASE_URL:", os.getenv("SUPABASE_URL"))
-print("SUPABASE_KEY:", os.getenv("SUPABASE_KEY"))
+print("SUPABASE_URL:", SUPABASE_URL)
+print("SUPABASE_KEY:", SUPABASE_KEY)
 
-supabase_url = os.getenv("SUPABASE_URL")
-supabase_key = os.getenv("SUPABASE_KEY")
+# Supabase 클라이언트 생성
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-if not supabase_key:
-    raise Exception("환경변수 SUPABASE_KEY가 코드에서 감지되지 않음")
+# Supabase에 상태 메시지 삽입
+try:
+    data = {
+        "content": "서버 상태 정상 ✅",
+        "timestamp": datetime.utcnow().isoformat()  # ← NOT NULL 컬럼 대응
+    }
+    res = supabase.table("messages").insert(data).execute()
+    print("[✅ Supabase 삽입 성공]")
+except Exception as e:
+    print("[❌ Supabase 삽입 실패 - APIError]")
+    print("에러 메시지:", str(e))
 
-supabase = create_client(supabase_url, supabase_key)
-
-def log_supabase_status():
-    try:
-        now = datetime.now().isoformat()
-        content = f"서버 상태 정상 (시간: {now})"
-        response = supabase.table("messages").insert({
-            "content": content,
-            "created_at": now
-        }).execute()
-        print("[✅ Supabase 삽입 성공]")
-        print(response)
-    except APIError as e:
-        print("[❌ Supabase 삽입 실패 - APIError]")
-        try:
-            print("에러 메시지:", e.message)
-            print("에러 응답:", e.response.text)
-        except Exception:
-            print("에러 상세 추출 실패 - 빈 에러 응답")
-    except Exception as e:
-        print("[❌ Supabase 삽입 실패 - 일반 예외]")
-        print(str(e))
-
-if __name__ == "__main__":
-    log_supabase_status()
+# 텔레그램 메시지 전송
+try:
+    message = "🔔 서버 작동 중입니다. Supabase 삽입 시도 완료"
+    telegram_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": message
+    }
+    telegram_res = requests.post(telegram_url, data=payload)
+    if telegram_res.status_code == 200:
+        print("[텔레그램 메시지 전송 성공]")
+    else:
+        print("[텔레그램 메시지 전송 실패]")
+        print(telegram_res.text)
+except Exception as e:
+    print("[텔레그램 오류]", str(e))
