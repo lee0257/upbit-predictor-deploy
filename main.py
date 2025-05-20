@@ -83,10 +83,22 @@ async def send_alive_message():
         print(f"[상태메시지] {msg}", flush=True)
         await asyncio.sleep(7200)
 
+async def send_test_message():
+    msg = "✅ 텔레그램 연결 테스트 메시지입니다. 봇이 정상 작동 중입니다."
+    for uid in TELEGRAM_IDS:
+        requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
+            data={"chat_id": uid, "text": msg}
+        )
+    print("[DEBUG] 텔레그램 테스트 메시지 전송 완료", flush=True)
+
 async def main():
     print("[DEBUG] main() 진입", flush=True)
     await load_market_info()
     print("[DEBUG] load_market_info() 완료", flush=True)
+
+    await send_test_message()  # ✅ 텔레그램 연결 확인용 메시지
+
     asyncio.create_task(send_alive_message())
     markets = list(symbol_map.keys())
     print(f"[DEBUG] 순회 시작. 전체 마켓 수: {len(markets)}", flush=True)
