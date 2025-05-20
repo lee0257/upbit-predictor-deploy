@@ -1,72 +1,101 @@
-import os
+# upbit_predictor_realtime.py
+import time
 import requests
-from datetime import datetime
+import datetime
+import pytz
+import asyncio
+import aiohttp
 from supabase import create_client, Client
-from dotenv import load_dotenv
 
-load_dotenv()
+SUPABASE_URL = "https://gzqpbywussubofgbsydw.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd6cXBieXd1c3N1Ym9mZ2JzeWR3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgyMzAwMDMsImV4cCI6MjA2Mzc4NjAwM30.rkE-N_mBlSYOYQnXUTuodRCfAl6ogfwl3q-j_1xguB8"
+TELEGRAM_TOKEN = "6383142222:AAGgC5I1-F6sMArX9M4Tx8VtIHHr-hh1pHo"
+TELEGRAM_IDS = [1901931119]
 
-# 환경변수 로드
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+KST = pytz.timezone("Asia/Seoul")
 
-# 환경변수 검증
-print("[환경변수 디버깅]")
-print("SUPABASE_URL:", SUPABASE_URL)
-print("SUPABASE_KEY:", SUPABASE_KEY)
-print("TELEGRAM_BOT_TOKEN:", TELEGRAM_BOT_TOKEN)
-print("TELEGRAM_CHAT_ID:", TELEGRAM_CHAT_ID)
+# 업비트 종목명 한글 매핑용
+symbol_map = {}
 
-if not SUPABASE_URL or not SUPABASE_KEY:
-    print("[❌ Supabase 설정 누락]")
-else:
-    try:
-        supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+async def load_market_info():
+    global symbol_map
+    url = "https://api.upbit.com/v1/market/all"
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as res:
+            data = await res.json()
+            symbol_map = {d['market']: d['korean_name'] for d in data if d['market'].startswith('KRW-')}
 
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        message_text = """
-[추천코인1]
-- 코인명: DEEP (딥북)
-- 현재가: 258원
-- 매수 추천가: 254 ~ 259원
-- 목표 매도가: 270원
-- 예상 수익률: 4.6%
-- 예상 소요 시간: 13분
-- 추천 이유: 체결량 급증 + 매수 강세 포착
-[선행급등포착]
-https://upbit.com/exchange?code=CRIX.UPBIT.KRW-DEEP
-""".strip()
+async def fetch_ticker(session, market):
+    url = f"https://api.upbit.com/v1/ticker?markets={market}"
+    async with session.get(url) as res:
+        return await res.json()
 
-        # Supabase 삽입
-        data = {
-            "message": message_text,
-            "timestamp": datetime.now().isoformat()
-        }
-        supabase.table("messages").insert(data).execute()
-        print("[✅ Supabase 삽입 성공]")
-    except Exception as e:
-        print("[❌ Supabase 삽입 실패]")
-        print("에러:", e)
+sent_cache = {}
 
-# 텔레그램 전송
-if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-    print("[⚠️ 텔레그램 설정 누락]")
-else:
-    try:
-        send_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-        send_data = {
-            "chat_id": TELEGRAM_CHAT_ID,
-            "text": message_text
-        }
-        telegram_res = requests.post(send_url, data=send_data)
-        if telegram_res.status_code == 200:
-            print("[✅ 텔레그램 메시지 전송 성공]")
-        else:
-            print("[❌ 텔레그램 전송 실패]")
-            print("응답코드:", telegram_res.status_code)
-            print("본문:", telegram_res.text)
-    except Exception as e:
-        print("[❌ 텔레그램 예외 발생]")
-        print("에러:", e)
+async def notify_recommendation(market, price, reason):
+    coin_name = market.replace("KRW-", "")
+    korean_name = symbol_map.get(market, "")
+    timestamp = datetime.datetime.now(KST).isoformat()
+
+    buy_price_range = f"{int(price*0.99)} ~ {int(price*1.01)}"
+    target_price = int(price * 1.03)
+    expected_profit = "3% 이상"
+    expected_time = "3분"
+
+    msg = f"[추천코인1]\n- 코인명: {coin_name} ({korean_name})\n- 현재가: {int(price)}원\n- 매수 추천가: {buy_price_range}원\n- 목표 매도가: {target_price}원\n- 예상 수익률: {expected_profit}\n- 예상 소요 시간: {expected_time}\n- 추천 이유: {reason}\n[선행급등포착]"
+
+    for uid in TELEGRAM_IDS:
+        requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
+            data={"chat_id": uid, "text": msg}
+        )
+
+    supabase.table("messages").insert({
+        "content": msg,
+        "type": "선행급등포착",
+        "timestamp": timestamp
+    }).execute()
+
+async def main():
+    await load_market_info()
+    markets = list(symbol_map.keys())
+
+    while True:
+        async with aiohttp.ClientSession() as session:
+            try:
+                for i in range(0, len(markets), 30):
+                    batch = markets[i:i+30]
+                    ticker_data = await asyncio.gather(*[fetch_ticker(session, m) for m in batch])
+
+                    for res in ticker_data:
+                        if not res or 'error' in res[0]:
+                            continue
+
+                        data = res[0]
+                        market = data['market']
+                        price = data['trade_price']
+                        acc_volume = data['acc_trade_price_24h']
+
+                        if acc_volume < 800_000_000:
+                            continue
+
+                        now = datetime.datetime.now(KST)
+                        minute = now.minute
+
+                        if sent_cache.get(market) and (now - sent_cache[market]).seconds < 1800:
+                            continue
+
+                        change_rate = data['signed_change_rate']
+                        if change_rate > 0.015:
+                            sent_cache[market] = now
+                            await notify_recommendation(market, price, "체결량 급증 + 매수 강세 포착")
+
+                await asyncio.sleep(20)
+
+            except Exception as e:
+                print("[오류 발생]", e)
+                await asyncio.sleep(30)
+
+if __name__ == "__main__":
+    asyncio.run(main())
