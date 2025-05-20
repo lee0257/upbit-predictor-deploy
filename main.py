@@ -1,3 +1,4 @@
+import sys
 import time
 import requests
 import datetime
@@ -5,6 +6,9 @@ import pytz
 import asyncio
 import aiohttp
 from supabase import create_client, Client
+
+print("[DEBUG] 실행 시작", flush=True)
+print("Python 버전:", sys.version, flush=True)
 
 SUPABASE_URL = "https://gzqpbywussubofgbsydw.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd6cXBieXd1c3N1Ym9mZ2JzeWR3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgyMzAwMDMsImV4cCI6MjA2Mzc4NjAwM30.rkE-N_mBlSYOYQnXUTuodRCfAl6ogfwl3q-j_1xguB8"
@@ -23,7 +27,7 @@ async def load_market_info():
         async with session.get(url) as res:
             data = await res.json()
             symbol_map = {d['market']: d['korean_name'] for d in data if d['market'].startswith('KRW-')}
-    print(f"[INFO] 마켓 불러오기 완료: {len(symbol_map)}개")
+    print(f"[INFO] 마켓 불러오기 완료: {len(symbol_map)}개", flush=True)
 
 async def fetch_ticker(session, market):
     url = f"https://api.upbit.com/v1/ticker?markets={market}"
@@ -38,7 +42,7 @@ def already_sent_recently(market):
         if market in r["content"]:
             ts = datetime.datetime.fromisoformat(r['timestamp']).astimezone(KST)
             if ts > thirty_min_ago:
-                print(f"[중복차단] {market}는 최근 30분 이내 전송됨 → 건너뜀")
+                print(f"[중복차단] {market} 최근 전송됨 → 건너뜀", flush=True)
                 return True
     return False
 
@@ -65,7 +69,7 @@ async def notify_recommendation(market, price, reason):
         "type": "선행급등포착",
         "timestamp": timestamp
     }).execute()
-    print(f"[전송완료] {market} → {korean_name} 추천 메시지 전송됨")
+    print(f"[전송완료] {market} 추천 메시지 전송됨", flush=True)
 
 async def send_alive_message():
     while True:
@@ -76,14 +80,16 @@ async def send_alive_message():
                 f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
                 data={"chat_id": uid, "text": msg}
             )
-        print(f"[상태메시지] {msg}")
+        print(f"[상태메시지] {msg}", flush=True)
         await asyncio.sleep(7200)
 
 async def main():
+    print("[DEBUG] main() 진입", flush=True)
     await load_market_info()
+    print("[DEBUG] load_market_info() 완료", flush=True)
     asyncio.create_task(send_alive_message())
     markets = list(symbol_map.keys())
-    print(f"[INFO] 순회 시작. 전체 마켓 수: {len(markets)}")
+    print(f"[DEBUG] 순회 시작. 전체 마켓 수: {len(markets)}", flush=True)
 
     while True:
         async with aiohttp.ClientSession() as session:
@@ -91,11 +97,9 @@ async def main():
                 for i in range(0, len(markets), 30):
                     batch = markets[i:i+30]
                     ticker_data = await asyncio.gather(*[fetch_ticker(session, m) for m in batch])
-
                     for res in ticker_data:
                         if not res or 'error' in res[0]:
                             continue
-
                         data = res[0]
                         market = data['market']
                         price = data['trade_price']
@@ -108,12 +112,13 @@ async def main():
                             continue
                         if change_rate > 0.015:
                             await notify_recommendation(market, price, "체결량 급증 + 매수 강세 포착")
-
                 await asyncio.sleep(20)
-
             except Exception as e:
-                print("[오류 발생]", e)
+                print("[루프 오류]", e, flush=True)
                 await asyncio.sleep(30)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except Exception as e:
+        print("[FATAL ERROR]", e, flush=True)
