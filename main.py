@@ -5,18 +5,20 @@ import datetime
 import pytz
 import asyncio
 import aiohttp
+import os
 from supabase import create_client, Client
 
 print("[DEBUG] 실행 시작", flush=True)
 print("Python 버전:", sys.version, flush=True)
 
-SUPABASE_URL = "https://vjdjdqxtvzehshhiurkk.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzIiwicmVmIjoidmpkamRxeHR2emVoc2hoaXVya2siLCJyb2xlIjoiYW5vbiIsImlhdCI6MTc0ODA0NjYyNCwiZXhwIjoyMDYzNjAyNjI0fQ.q3QgdlnA3q3yJlxnl41RKOsDNwtGsvYNYeQ-mCFlVu8"
-TELEGRAM_TOKEN = "6383142222:AAGgC5I1-F6sMArX9M4Tx8VtIHHr-hh1pHo"
-TELEGRAM_IDS = [1901931119]
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_IDS = [int(os.getenv("TELEGRAM_CHAT_ID", "1901931119"))]
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 KST = pytz.timezone("Asia/Seoul")
+
 symbol_map = {}
 
 async def load_market_info():
@@ -28,10 +30,15 @@ async def load_market_info():
             symbol_map = {d['market']: d['korean_name'] for d in data if d['market'].startswith('KRW-')}
     print(f"[INFO] 마켓 불러오기 완료: {len(symbol_map)}개", flush=True)
 
+async def fetch_ticker(session, market):
+    url = f"https://api.upbit.com/v1/ticker?markets={market}"
+    async with session.get(url) as res:
+        return await res.json()
+
 def already_sent_recently(market):
-    now = datetime.datetime.now(KST)
-    thirty_min_ago = now - datetime.timedelta(minutes=30)
     try:
+        now = datetime.datetime.now(KST)
+        thirty_min_ago = now - datetime.timedelta(minutes=30)
         res = supabase.table("messages").select("timestamp", "content").eq("type", "선행급등포착").execute()
         for r in res.data:
             if market in r["content"]:
@@ -42,20 +49,6 @@ def already_sent_recently(market):
     except Exception as e:
         print("[중복 확인 오류]", e, flush=True)
     return False
-
-def send_telegram_message(msg):
-    for uid in TELEGRAM_IDS:
-        try:
-            response = requests.post(
-                f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
-                data={"chat_id": uid, "text": msg}
-            )
-            if response.status_code == 200:
-                print(f"[텔레그램 성공] {uid}에게 메시지 도착", flush=True)
-            else:
-                print(f"[텔레그램 실패] 응답 코드: {response.status_code}, 내용: {response.text}", flush=True)
-        except Exception as e:
-            print(f"[텔레그램 예외] {e}", flush=True)
 
 async def notify_recommendation(market, price, reason):
     coin_name = market.replace("KRW-", "")
@@ -69,7 +62,16 @@ async def notify_recommendation(market, price, reason):
 
     msg = f"[추천코인1]\n- 코인명: {coin_name} ({korean_name})\n- 현재가: {int(price)}원\n- 매수 추천가: {buy_price_range}원\n- 목표 매도가: {target_price}원\n- 예상 수익률: {profit_rate}%\n- 예상 소요 시간: {expected_time}\n- 추천 이유: {reason}\n[선행급등포착]"
 
-    send_telegram_message(msg)
+    for uid in TELEGRAM_IDS:
+        try:
+            resp = requests.post(
+                f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
+                data={"chat_id": uid, "text": msg}
+            )
+            if resp.status_code != 200:
+                print(f"[텔레그램 실패] 응답 코드: {resp.status_code}, 내용: {resp.text}", flush=True)
+        except Exception as e:
+            print("[텔레그램 예외]", e, flush=True)
 
     try:
         supabase.table("messages").insert({
@@ -77,33 +79,62 @@ async def notify_recommendation(market, price, reason):
             "type": "선행급등포착",
             "timestamp": timestamp
         }).execute()
-        print(f"[전송완료] {market} 추천 메시지 전송됨", flush=True)
     except Exception as e:
         print("[DB 저장 실패]", e, flush=True)
+
+    print(f"[전송완료] {market} 추천 메시지 전송됨", flush=True)
 
 async def send_alive_message():
     while True:
         now = datetime.datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")
         msg = f"✅ 서버 정상 작동 중입니다 ({now} 기준)"
-        send_telegram_message(msg)
+        for uid in TELEGRAM_IDS:
+            try:
+                resp = requests.post(
+                    f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
+                    data={"chat_id": uid, "text": msg}
+                )
+                if resp.status_code != 200:
+                    print(f"[텔레그램 실패] 응답 코드: {resp.status_code}, 내용: {resp.text}", flush=True)
+            except Exception as e:
+                print("[텔레그램 예외]", e, flush=True)
         print(f"[상태메시지] {msg}", flush=True)
         await asyncio.sleep(7200)
-
-async def send_test_message():
-    msg = "✅ 텔레그램 연결 테스트 메시지입니다. 봇이 정상 작동 중입니다."
-    send_telegram_message(msg)
-    print("[DEBUG] 텔레그램 테스트 메시지 전송 완료", flush=True)
 
 async def main():
     print("[DEBUG] main() 진입", flush=True)
     await load_market_info()
-    await send_test_message()
+    print("[DEBUG] load_market_info() 완료", flush=True)
     asyncio.create_task(send_alive_message())
+    markets = list(symbol_map.keys())
+    print(f"[DEBUG] 순회 시작. 전체 마켓 수: {len(markets)}", flush=True)
 
-    dummy_market = "KRW-XRP"
-    dummy_price = 715
-    if not already_sent_recently(dummy_market):
-        await notify_recommendation(dummy_market, dummy_price, "강제 추천: 기능 확인용")
+    while True:
+        async with aiohttp.ClientSession() as session:
+            try:
+                for i in range(0, len(markets), 30):
+                    batch = markets[i:i+30]
+                    ticker_data = await asyncio.gather(*[fetch_ticker(session, m) for m in batch])
+                    for res in ticker_data:
+                        if not res or 'error' in res[0]:
+                            continue
+                        data = res[0]
+                        market = data['market']
+                        price = data['trade_price']
+                        acc_volume = data['acc_trade_price_24h']
+                        change_rate = data['signed_change_rate']
+
+                        if acc_volume < 800_000_000:
+                            continue
+                        if already_sent_recently(market):
+                            continue
+                        if change_rate > 0.015:
+                            await notify_recommendation(market, price, "체결량 급증 + 매수 강세 포착")
+
+                await asyncio.sleep(20)
+            except Exception as e:
+                print("[루프 오류]", e, flush=True)
+                await asyncio.sleep(30)
 
 if __name__ == "__main__":
     try:
