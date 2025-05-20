@@ -39,11 +39,15 @@ def log_supabase_status():
             "message": "✅ Supabase 삽입 테스트 - 상세 오류 로깅"
         }).execute()
         print("[DB 삽입 성공]", response)
-    except Exception:
+    except Exception as e:
         print("[DB 오류 발생]:")
         print(traceback.format_exc())
+        try:
+            print("[오류 응답 내용]:", e.response.text)
+        except Exception:
+            print("[오류 응답 상세 내용 추출 실패]")
         asyncio.run(send_message("[시스템 오류] Supabase 삽입 실패 - 관리자 확인 필요"))
 
 if __name__ == "__main__":
     log_supabase_status()
-    asyncio.run(send_message("✅ 시스템 실행됨: 로그 상세 모드"))
+    asyncio.run(send_message("✅ 시스템 실행됨: 로그 상세 + 응답 포함"))
