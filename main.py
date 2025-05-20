@@ -1,6 +1,7 @@
 
 import os
 import asyncio
+import traceback
 from dotenv import load_dotenv
 from supabase import create_client
 import telegram
@@ -35,13 +36,14 @@ def log_supabase_status():
     try:
         supabase = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
         response = supabase.table("messages").insert({
-            "message": "✅ 실전버전: Supabase 삽입 성공"
+            "message": "✅ Supabase 삽입 테스트 - 상세 오류 로깅"
         }).execute()
         print("[DB 삽입 성공]", response)
-    except Exception as e:
-        print("[DB 오류 발생]:", e)
-        asyncio.run(send_message(f"[Supabase 오류] {e}"))
+    except Exception:
+        print("[DB 오류 발생]:")
+        print(traceback.format_exc())
+        asyncio.run(send_message("[시스템 오류] Supabase 삽입 실패 - 관리자 확인 필요"))
 
 if __name__ == "__main__":
     log_supabase_status()
-    asyncio.run(send_message("✅ 시스템 최종 안정화 완료: 메시지 + DB 삽입"))
+    asyncio.run(send_message("✅ 시스템 실행됨: 로그 상세 모드"))
