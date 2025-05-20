@@ -23,6 +23,7 @@ async def load_market_info():
         async with session.get(url) as res:
             data = await res.json()
             symbol_map = {d['market']: d['korean_name'] for d in data if d['market'].startswith('KRW-')}
+    print(f"[INFO] 마켓 불러오기 완료: {len(symbol_map)}개")
 
 async def fetch_ticker(session, market):
     url = f"https://api.upbit.com/v1/ticker?markets={market}"
@@ -37,6 +38,7 @@ def already_sent_recently(market):
         if market in r["content"]:
             ts = datetime.datetime.fromisoformat(r['timestamp']).astimezone(KST)
             if ts > thirty_min_ago:
+                print(f"[중복차단] {market}는 최근 30분 이내 전송됨 → 건너뜀")
                 return True
     return False
 
@@ -63,10 +65,25 @@ async def notify_recommendation(market, price, reason):
         "type": "선행급등포착",
         "timestamp": timestamp
     }).execute()
+    print(f"[전송완료] {market} → {korean_name} 추천 메시지 전송됨")
+
+async def send_alive_message():
+    while True:
+        now = datetime.datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")
+        msg = f"✅ 서버 정상 작동 중입니다 ({now} 기준)"
+        for uid in TELEGRAM_IDS:
+            requests.post(
+                f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
+                data={"chat_id": uid, "text": msg}
+            )
+        print(f"[상태메시지] {msg}")
+        await asyncio.sleep(7200)
 
 async def main():
     await load_market_info()
+    asyncio.create_task(send_alive_message())
     markets = list(symbol_map.keys())
+    print(f"[INFO] 순회 시작. 전체 마켓 수: {len(markets)}")
 
     while True:
         async with aiohttp.ClientSession() as session:
