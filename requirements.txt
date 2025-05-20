@@ -1,4 +1,5 @@
-python-dotenv
-supabase
-httpx
+aiohttp
 requests
+pytz
+supabase
+python-dateutil
