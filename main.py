@@ -10,14 +10,13 @@ from supabase import create_client, Client
 print("[DEBUG] 실행 시작", flush=True)
 print("Python 버전:", sys.version, flush=True)
 
-SUPABASE_URL = "https://gzqpbywussubofgbsydw.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd6cXBieXd1c3N1Ym9mZ2JzeWR3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgyMzAwMDMsImV4cCI6MjA2Mzc4NjAwM30.rkE-N_mBlSYOYQnXUTuodRCfAl6ogfwl3q-j_1xguB8"
+SUPABASE_URL = "https://hqwyfqccghosrgynckhr.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzIiwicmVmIjoiaHF3eWZxY2NnaG9zcmd5bmNraHIiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTc0ODI4MTI5NywiZXhwIjoyMDYzODM3Mjk3fQ.f2HGMZd2IgyN0Pb4iTkEflxFeI0af_8jAjz8W7zN6c8"
 TELEGRAM_TOKEN = "6383142222:AAGgC5I1-F6sMArX9M4Tx8VtIHHr-hh1pHo"
 TELEGRAM_IDS = [1901931119]
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 KST = pytz.timezone("Asia/Seoul")
-
 symbol_map = {}
 
 async def load_market_info():
@@ -37,13 +36,16 @@ async def fetch_ticker(session, market):
 def already_sent_recently(market):
     now = datetime.datetime.now(KST)
     thirty_min_ago = now - datetime.timedelta(minutes=30)
-    res = supabase.table("messages").select("timestamp", "content").eq("type", "선행급등포착").execute()
-    for r in res.data:
-        if market in r["content"]:
-            ts = datetime.datetime.fromisoformat(r['timestamp']).astimezone(KST)
-            if ts > thirty_min_ago:
-                print(f"[중복차단] {market} 최근 전송됨 → 건너뜀", flush=True)
-                return True
+    try:
+        res = supabase.table("messages").select("timestamp", "content").eq("type", "선행급등포착").execute()
+        for r in res.data:
+            if market in r["content"]:
+                ts = datetime.datetime.fromisoformat(r['timestamp']).astimezone(KST)
+                if ts > thirty_min_ago:
+                    print(f"[중복차단] {market} 최근 전송됨 → 건너뜀", flush=True)
+                    return True
+    except Exception as e:
+        print("[중복 확인 오류]", e, flush=True)
     return False
 
 async def notify_recommendation(market, price, reason):
@@ -64,12 +66,15 @@ async def notify_recommendation(market, price, reason):
             data={"chat_id": uid, "text": msg}
         )
 
-    supabase.table("messages").insert({
-        "content": msg,
-        "type": "선행급등포착",
-        "timestamp": timestamp
-    }).execute()
-    print(f"[전송완료] {market} 추천 메시지 전송됨", flush=True)
+    try:
+        supabase.table("messages").insert({
+            "content": msg,
+            "type": "선행급등포착",
+            "timestamp": timestamp
+        }).execute()
+        print(f"[전송완료] {market} 추천 메시지 전송됨", flush=True)
+    except Exception as e:
+        print("[DB 저장 실패]", e, flush=True)
 
 async def send_alive_message():
     while True:
@@ -97,9 +102,9 @@ async def main():
     await load_market_info()
     print("[DEBUG] load_market_info() 완료", flush=True)
 
-    await send_test_message()  # ✅ 텔레그램 연결 확인용 메시지
-
+    await send_test_message()
     asyncio.create_task(send_alive_message())
+
     markets = list(symbol_map.keys())
     print(f"[DEBUG] 순회 시작. 전체 마켓 수: {len(markets)}", flush=True)
 
