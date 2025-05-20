@@ -16,6 +16,9 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_IDS = [int(os.getenv("TELEGRAM_CHAT_ID", "1901931119"))]
 
+# 디버그용 토큰 출력
+print(f"[디버그] 토큰 길이: {len(TELEGRAM_TOKEN)}, 값: '{TELEGRAM_TOKEN}'", flush=True)
+
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 KST = pytz.timezone("Asia/Seoul")
 
