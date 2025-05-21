@@ -1,4 +1,6 @@
 
+import os
+import sys
 from datetime import datetime, timedelta
 import requests
 import pytz
@@ -6,20 +8,21 @@ import time
 import traceback
 from supabase import create_client, Client
 
-SUPABASE_URL = "https://zkrdvcynslbyzhpyguor.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InprcmR2Y3luc2xieXpocHlndW9yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTEwODM1OTUsImV4cCI6MjA2NjY0OTU5NX0.fq5zQuT8LTSNfKldfHpb9lNYP8Rmi53A_yz3hvH8y5U"
-TELEGRAM_TOKEN = "7287889681:AAHqKbipumgMmRQ8J4_Zu8Nlu_CYDnbCt0U"
-TELEGRAM_CHAT_IDS = ["1901931119"]
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_IDS = [os.getenv("TELEGRAM_CHAT_ID")]
+
 DB_TABLE = "messages"
 SEND_INTERVAL_MINUTES = 30
 LOOP_INTERVAL_SECONDS = 30
-
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 kst = pytz.timezone("Asia/Seoul")
 last_sent_times = {}
 
 def send_telegram_message(message: str):
     for chat_id in TELEGRAM_CHAT_IDS:
+        if not chat_id:
+            continue
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
         payload = {"chat_id": chat_id, "text": message}
         try:
@@ -27,22 +30,32 @@ def send_telegram_message(message: str):
         except Exception as e:
             print("텔레그램 전송 오류:", e)
 
+# Supabase 연결 시도 및 상태 출력
+print("[시스템] Supabase 연결 시도 중...")
+
+try:
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    print("[시스템] ✅ Supabase에 연결되었습니다.")
+    send_telegram_message("[시스템] ✅ Supabase에 연결되었습니다.")
+except Exception as e:
+    print("[시스템] ❌ Supabase 연결 실패:", e)
+    
+    sys.exit(1)
+
 def log_error(message: str):
     now = datetime.now(kst).strftime("%Y-%m-%d %H:%M:%S")
     full_message = f"[에러 발생] {now}\n{message}"
     print(full_message)
-    send_telegram_message(full_message)
+    
 
-def notify_system_status():
+def notify_telegram_connection():
     try:
-        supabase_msg = "[시스템] ✅ Supabase에 연결되었습니다."
-        telegram_msg = "[시스템] ✅ Telegram에 연결되었습니다."
-        print(supabase_msg)
-        print(telegram_msg)
-        send_telegram_message(supabase_msg)
-        send_telegram_message(telegram_msg)
+        print("[시스템] Telegram 연결 확인 중...")
+        send_telegram_message("[시스템] ✅ Telegram에 연결되었습니다.")
+        print("[시스템] ✅ Telegram에 연결되었습니다.")
     except Exception as e:
-        log_error("시스템 상태 메시지 출력 오류:\n" + traceback.format_exc())
+        print("[시스템] ❌ Telegram 연결 실패:", e)
+        send_telegram_message(f"[시스템] ❌ Telegram 연결 실패:\n{e}")
 
 def generate_recommendation():
     now = datetime.now(kst)
@@ -93,7 +106,7 @@ def save_to_supabase(message: str):
 
 def main():
     try:
-        notify_system_status()
+        notify_telegram_connection()
         while True:
             try:
                 messages = generate_recommendation()
