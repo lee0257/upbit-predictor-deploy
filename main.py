@@ -2,20 +2,26 @@ import os
 import asyncio
 import aiohttp
 import pytz
-import time
 from datetime import datetime
 from supabase import create_client, Client
 import requests
+import time
 
+# 설정
 KST = pytz.timezone("Asia/Seoul")
-
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_IDS = [int(x) for x in os.getenv("TELEGRAM_CHAT_IDS", "1901931119").split(",")]
 
+# Supabase 연결
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+# 중복 전송 차단용 캐시
+last_sent_time = 0
+last_sent_market = ""
+
+# 한글명 매핑
 symbol_map = {}
 
 async def send_telegram_message(text: str):
@@ -37,62 +43,59 @@ def insert_to_supabase(message: str):
     except Exception as e:
         print("[DB 저장 실패]", e, flush=True)
 
-def get_market_list():
-    url = "https://api.upbit.com/v1/market/all"
+def get_market_info():
     try:
+        url = "https://api.upbit.com/v1/market/all"
         res = requests.get(url)
-        markets = res.json()
-        krw_markets = [m["market"] for m in markets if m["market"].startswith("KRW-")]
+        items = res.json()
+        krw = [m["market"] for m in items if m["market"].startswith("KRW-")]
         global symbol_map
-        symbol_map = {m["market"]: m["korean_name"] for m in markets if m["market"].startswith("KRW-")}
-        return krw_markets
+        symbol_map = {m["market"]: m["korean_name"] for m in items if m["market"].startswith("KRW-")}
+        return krw
     except Exception as e:
-        print("[마켓 조회 오류]", e, flush=True)
+        print("[마켓 목록 오류]", e, flush=True)
         return []
 
 def get_tickers(markets):
-    url = f"https://api.upbit.com/v1/ticker?markets={','.join(markets)}"
     try:
+        url = f"https://api.upbit.com/v1/ticker?markets={','.join(markets)}"
         res = requests.get(url)
         return res.json()
     except Exception as e:
-        print("[티커 조회 오류]", e, flush=True)
+        print("[티커 데이터 오류]", e, flush=True)
         return []
 
-def analyze_and_select_best():
-    markets = get_market_list()
+def analyze():
+    markets = get_market_info()
     data = get_tickers(markets)
 
     best_score = -1
-    best_coin = None
+    best = None
 
     for item in data:
         market = item["market"]
         price = item["trade_price"]
-        volume = item["acc_trade_price"]
-        change_rate = item["signed_change_rate"] * 100
+        vol = item["acc_trade_price"]
+        rate = item["signed_change_rate"] * 100
         high = item["high_price"]
         low = item["low_price"]
 
-        # 선행포착 조건
-        if volume < 800_000_000:
-            continue
-        if change_rate < 2.5:
+        if vol < 800_000_000 or rate < 2.5:
             continue
 
         volatility = (high - low) / price
-        score = change_rate * volatility * (volume / 1_000_000_000)
+        score = rate * volatility * (vol / 1_000_000_000)
 
         if score > best_score:
             best_score = score
-            best_coin = {
+            best = {
                 "market": market,
                 "price": int(price),
-                "change": round(change_rate, 2),
-                "volume": int(volume)
+                "change": round(rate, 2),
+                "volume": int(vol)
             }
 
-    return best_coin
+    return best
 
 def format_message(coin):
     market = coin["market"]
@@ -114,15 +117,23 @@ def format_message(coin):
     )
 
 async def main():
-    print("[실전코드 실행 시작 - 전체 코인 대상]", flush=True)
-    coin = analyze_and_select_best()
+    global last_sent_time, last_sent_market
 
+    print("[실전코드 실행 시작 - 전체 코인 대상]", flush=True)
+    coin = analyze()
     if coin:
+        now = time.time()
+        if coin["market"] == last_sent_market and now - last_sent_time < 1800:
+            print("[중복 차단] 최근 전송된 코인과 동일", flush=True)
+            return
+
         msg = format_message(coin)
         insert_to_supabase(msg)
         await send_telegram_message(msg)
+        last_sent_time = now
+        last_sent_market = coin["market"]
     else:
-        print("[포착 없음] 조건 만족 코인 없음", flush=True)
+        print("[포착 없음] 조건 만족 없음", flush=True)
 
 if __name__ == "__main__":
     asyncio.run(main())
