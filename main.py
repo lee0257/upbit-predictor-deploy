@@ -7,12 +7,23 @@ from supabase import create_client
 from pytz import timezone
 
 SUPABASE_URL = "https://gzqpbywussubofgbsydw.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd6cXBieXd1c3N1Ym9mZ2JzeWR3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgyMzAwMDMsImV4cCI6MjA2Mzc4NjAwM30.rkE-N_mBlSYOYQnXUTuodRCfAl6ogfwl3q-j_1xguB8"
-TELEGRAM_TOKEN = "7287889681:AAHqKbipumgMmRQ8J4_Zu8Nlu_CYDnbCt0U"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+TELEGRAM_TOKEN = "7287889681:AAHqKbipumgMmRQ8..."
 TELEGRAM_CHAT_IDS = ["1901931119"]
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-sent_markets = set()
+
+# 중복 방지를 위한 시간기반 기록
+last_sent_time = {}
+
+# 예상 수익률 함수 (동적으로 확장 가능)
+def get_expected_profit_rate(price, target):
+    rate = ((target - price) / price) * 100
+    return f"{rate:.1f}%"
+
+# 예상 시간 함수
+def get_expected_time():
+    return "10분 이내"
 
 def get_korean_name(market, all_markets):
     for m in all_markets:
@@ -58,14 +69,21 @@ def make_msg(index, market, name, price, reason):
 - 현재가: {format_number(price)}원
 - 매수 추천가: {format_number(buy_min)} ~ {format_number(buy_max)}원
 - 목표 매도가: {format_number(target)}원
-- 예상 수익률: 3%
-- 예상 소요 시간: 10분 이내
+- 예상 수익률: {get_expected_profit_rate(price, target)}
+- 예상 소요 시간: {get_expected_time()}
 - 추천 이유: {reason}
 [선행급등포착]
 https://upbit.com/exchange?code=CRIX.UPBIT.{market}"""
 
+# 중복 전송 제한 (30분 간격)
 def should_send(market):
-    return market not in sent_markets
+    now = datetime.datetime.now()
+    if market not in last_sent_time:
+        return True
+    return (now - last_sent_time[market]).total_seconds() > 1800
+
+def update_sent(market):
+    last_sent_time[market] = datetime.datetime.now()
 
 def analyze_and_send():
     try:
@@ -94,7 +112,7 @@ def analyze_and_send():
                 "market": market,
                 "message": msg
             })
-            sent_markets.add(market)
+            update_sent(market)
             index += 1
 
     except Exception as e:
