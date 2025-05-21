@@ -44,6 +44,7 @@ def send_to_supabase(content: str, msg_type: str = "signal"):
         }
         supabase.table(SUPABASE_TABLE_NAME).insert(data).execute()
     except Exception as e:
+        print(f"[에러] ❌ Supabase 삽입 실패: {e}")  # 콘솔 출력 추가
         send_telegram(f"[에러] ❌ Supabase 삽입 실패\n{str(e)}")
 
 # === 한글 코인명 자동 매핑 ===
@@ -115,6 +116,7 @@ def startup_checks():
             print("[에러] Telegram 연결 실패")
 
     except Exception as e:
+        print(f"[에러] 시스템 시작 실패: {e}")
         send_telegram(f"[에러] 시스템 시작 실패\n{str(e)}")
 
 # === 루프 실행 ===
@@ -129,6 +131,7 @@ def run_loop():
             else:
                 print(f"[대기] 조건 불충족 {datetime.now().strftime('%H:%M:%S')}")
         except Exception as e:
+            print(f"[에러] 메인 루프 오류 발생: {e}")
             send_telegram(f"[에러] 메인 루프 오류 발생\n{str(e)}")
         time.sleep(30)
 
