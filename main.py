@@ -2,6 +2,7 @@ import os
 import requests
 from datetime import datetime, timedelta
 import time
+import traceback
 from supabase import create_client, Client
 
 # === 환경변수 ===
@@ -17,6 +18,7 @@ try:
     print("[시스템] ✅ Supabase 클라이언트 객체 생성 완료")
 except Exception as e:
     print(f"[에러] ❌ Supabase 클라이언트 생성 실패: {e}")
+    traceback.print_exc()
 
 # === Telegram 연결 확인 ===
 def check_telegram():
@@ -27,6 +29,7 @@ def check_telegram():
         return True
     except Exception as e:
         print(f"[에러] Telegram 연결 확인 실패: {e}")
+        traceback.print_exc()
         return False
 
 # === 텔레그램 전송 ===
@@ -42,20 +45,24 @@ def send_telegram(message: str):
             response.raise_for_status()
         except Exception as e:
             print(f"[에러] Telegram 전송 실패: {e}")
+            traceback.print_exc()
 
 # === Supabase 저장 ===
 def send_to_supabase(content: str, msg_type: str = "signal"):
     try:
+        print("[디버그] Supabase 삽입 시작")
+        print(f"[디버그] 삽입 대상 테이블: {SUPABASE_TABLE_NAME}")
         data = {
             "content": content,
             "type": msg_type,
             "created_at": datetime.now().isoformat()
         }
-        print(f"[디버그] Supabase 삽입 데이터: {data}")
+        print(f"[디버그] 삽입 데이터: {data}")
         result = supabase.table(SUPABASE_TABLE_NAME).insert(data).execute()
         print(f"[시스템] ✅ Supabase 삽입 성공: {result}")
     except Exception as e:
         print(f"[에러] ❌ Supabase 삽입 실패: {e}")
+        traceback.print_exc()
         send_telegram(f"[에러] ❌ Supabase 삽입 실패\n{str(e)}")
 
 # === 한글 코인명 자동 매핑 ===
@@ -71,6 +78,7 @@ def get_korean_name_map():
         }
     except Exception as e:
         print(f"[에러] 한글 코인명 매핑 실패: {e}")
+        traceback.print_exc()
         return {}
 
 KOREAN_NAME_MAP = get_korean_name_map()
@@ -115,20 +123,21 @@ def detect_coin():
 def startup_checks():
     try:
         if SUPABASE_URL and SUPABASE_KEY:
+            print("[시스템] ✅ Supabase 환경변수 확인 완료")
             send_telegram("[시스템] ✅ Supabase에 연결되었습니다.")
-            print("[시스템] ✅ Supabase에 연결되었습니다.")
         else:
             print("[에러] Supabase 환경변수 누락")
             send_telegram("[에러] ❌ Supabase 연결 정보 누락")
 
         if check_telegram():
+            print("[시스템] ✅ Telegram 연결 확인 성공")
             send_telegram("[시스템] ✅ Telegram에 연결되었습니다.")
-            print("[시스템] ✅ Telegram에 연결되었습니다.")
         else:
             print("[에러] Telegram 연결 실패")
 
     except Exception as e:
         print(f"[에러] 시스템 시작 실패: {e}")
+        traceback.print_exc()
         send_telegram(f"[에러] 시스템 시작 실패\n{str(e)}")
 
 # === 루프 실행 ===
@@ -137,6 +146,7 @@ def run_loop():
         try:
             msg = detect_coin()
             if msg:
+                print("[디버그] 추천 조건 감지됨 → 메시지 전송 시작")
                 send_telegram(msg)
                 send_to_supabase(msg)
                 print(f"[전송 완료] {datetime.now().strftime('%H:%M:%S')}")
@@ -144,6 +154,7 @@ def run_loop():
                 print(f"[대기] 조건 불충족 {datetime.now().strftime('%H:%M:%S')}")
         except Exception as e:
             print(f"[에러] 메인 루프 오류 발생: {e}")
+            traceback.print_exc()
             send_telegram(f"[에러] 메인 루프 오류 발생\n{str(e)}")
         time.sleep(30)
 
