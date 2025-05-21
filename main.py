@@ -22,6 +22,8 @@ last_sent_times = {}
 
 def send_telegram_message(message: str):
     for chat_id in TELEGRAM_CHAT_IDS:
+        if not chat_id:
+            continue
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
         payload = {"chat_id": chat_id, "text": message}
         try:
@@ -36,12 +38,16 @@ def log_error(message: str):
     send_telegram_message(full_message)
 
 def notify_system_status():
-    supabase_msg = "[시스템] ✅ Supabase에 연결되었습니다."
-    telegram_msg = "[시스템] ✅ Telegram에 연결되었습니다."
-    print(supabase_msg)
-    print(telegram_msg)
-    send_telegram_message(supabase_msg)
-    send_telegram_message(telegram_msg)
+    try:
+        print("[DEBUG] notify_system_status() 진입")
+        supabase_msg = "[시스템] ✅ Supabase에 연결되었습니다."
+        telegram_msg = "[시스템] ✅ Telegram에 연결되었습니다."
+        print(supabase_msg)
+        print(telegram_msg)
+        send_telegram_message(supabase_msg)
+        send_telegram_message(telegram_msg)
+    except Exception as e:
+        log_error("시스템 상태 메시지 출력 오류:\n" + traceback.format_exc())
 
 def generate_recommendation():
     now = datetime.now(kst)
