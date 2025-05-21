@@ -6,22 +6,19 @@ import requests
 from supabase import create_client
 from pytz import timezone
 
-# ──────────────── 설정 ────────────────
-SUPABASE_URL = "https://pgixxrmhjzqcqoorinfe.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6Ik..."
+SUPABASE_URL = "https://qhecmpiechnbdnamiqej.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFoZWNtcGllY2huYmRuYW1pcWVqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc4MDgzNTksImV4cCI6MjA2MzM4NDM1OX0.W6kNeMOhK8lYrS_Rl18DBtWDto2snG2hbKjmszpj1HY"
 TELEGRAM_TOKEN = "7287889681:AAHqKbipumgMmRQ8J4_Zu8Nlu_CYDnbCt0U"
 TELEGRAM_CHAT_IDS = ["1901931119"]
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 last_sent_time = {}
 
-# ──────────────── 유틸 ────────────────
 def get_expected_profit_rate(price, target):
     rate = ((target - price) / price) * 100
     return f"{rate:.2f}%"
 
 def get_expected_time(price, rate):
-    # 단순 추정: 상승률 3% 미만이면 10분 이상, 이상이면 5~10분
     if rate < 0.03:
         return "10~15분"
     elif rate < 0.05:
@@ -38,7 +35,6 @@ def get_korean_name(market, all_markets):
 def fmt(val):
     return f"{val:,.6f}" if val < 1 else f"{val:,.0f}"
 
-# ──────────────── 연결 확인 ────────────────
 def check_connections():
     try:
         supabase.table("messages").select("*").limit(1).execute()
@@ -59,7 +55,6 @@ def check_connections():
         print("❌ Telegram 연결 실패:", e)
         send_telegram(f"[시스템 오류] ❌ Telegram 연결 실패: {e}")
 
-# ──────────────── 전송/삽입 ────────────────
 def send_telegram(msg):
     for chat_id in TELEGRAM_CHAT_IDS:
         try:
@@ -76,7 +71,6 @@ def insert_supabase(record):
     except Exception as e:
         print("[Supabase 삽입 오류]", e)
 
-# ──────────────── 중복 체크 ────────────────
 def should_send(market):
     now = datetime.datetime.now()
     if market not in last_sent_time:
@@ -86,7 +80,6 @@ def should_send(market):
 def update_sent(market):
     last_sent_time[market] = datetime.datetime.now()
 
-# ──────────────── 메시지 생성 ────────────────
 def make_msg(index, market, name, price):
     buy_min = round(price * 0.99, 6)
     buy_max = round(price * 1.005, 6)
@@ -103,7 +96,6 @@ def make_msg(index, market, name, price):
 [선행급등포착]
 https://upbit.com/exchange?code=CRIX.UPBIT.{market}"""
 
-# ──────────────── 분석 루프 ────────────────
 def analyze():
     try:
         m_url = "https://api.upbit.com/v1/market/all"
@@ -146,7 +138,6 @@ def analyze():
         traceback.print_exc()
         send_telegram(f"[에러 발생]\n{e}")
 
-# ──────────────── 메인 실행 ────────────────
 if __name__ == "__main__":
     check_connections()
     print("🚀 실전 자동화 시스템 작동 시작 (30초 주기)")
