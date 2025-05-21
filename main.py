@@ -14,10 +14,8 @@ TELEGRAM_CHAT_IDS = ["1901931119"]
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# ───── 중복 전송 방지용 전송 기록 ─────
 last_sent_time = {}
 
-# ───── 수익률 계산 함수 ─────
 def get_expected_profit_rate(price, target):
     rate = ((target - price) / price) * 100
     return f"{rate:.1f}%"
@@ -25,24 +23,37 @@ def get_expected_profit_rate(price, target):
 def get_expected_time():
     return "10분 이내"
 
-# ───── 시작 시 연결 확인 ─────
+def send_telegram(msg):
+    for chat_id in TELEGRAM_CHAT_IDS:
+        try:
+            requests.post(
+                f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
+                data={"chat_id": chat_id, "text": msg}
+            )
+        except Exception as e:
+            print(f"[Telegram 오류]: {e}")
+
 def check_connections():
     try:
         supabase.table("messages").select("*").limit(1).execute()
-        print("✅ Supabase 연결됨")
+        print("✅ Supabase에 연결되었습니다.")
+        send_telegram("[시스템] ✅ Supabase에 연결되었습니다.")
     except Exception as e:
         print("❌ Supabase 연결 실패:", e)
+        send_telegram(f"[시스템 오류] ❌ Supabase 연결 실패: {e}")
 
     try:
         r = requests.get(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getMe")
         if r.status_code == 200:
-            print("✅ Telegram 연결됨")
+            print("✅ Telegram에 연결되었습니다.")
+            send_telegram("[시스템] ✅ Telegram에 연결되었습니다.")
         else:
             print("❌ Telegram 오류:", r.status_code)
+            send_telegram(f"[시스템 오류] ❌ Telegram 응답 오류: {r.status_code}")
     except Exception as e:
         print("❌ Telegram 연결 실패:", e)
+        send_telegram(f"[시스템 오류] ❌ Telegram 연결 실패: {e}")
 
-# ───── 업비트 데이터 가져오기 ─────
 def get_market_info():
     url = "https://api.upbit.com/v1/market/all"
     markets = requests.get(url).json()
@@ -58,7 +69,6 @@ def get_korean_name(market, market_list):
             return m["korean_name"]
     return market
 
-# ───── 추천 메시지 포맷 생성 ─────
 def make_msg(index, market, name, price, reason):
     buy_min = round(price * 0.99, 6)
     buy_max = round(price * 1.005, 6)
@@ -78,7 +88,6 @@ def make_msg(index, market, name, price, reason):
 [선행급등포착]
 https://upbit.com/exchange?code=CRIX.UPBIT.{market}"""
 
-# ───── 중복 메시지 차단 ─────
 def should_send(market):
     now = datetime.datetime.now()
     if market not in last_sent_time:
@@ -88,21 +97,12 @@ def should_send(market):
 def update_sent(market):
     last_sent_time[market] = datetime.datetime.now()
 
-# ───── 메시지 전송 및 기록 ─────
-def send_telegram(msg):
-    for chat_id in TELEGRAM_CHAT_IDS:
-        try:
-            requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", data={"chat_id": chat_id, "text": msg})
-        except Exception as e:
-            print(f"[Telegram 오류]: {e}")
-
 def insert_supabase(record):
     try:
         supabase.table("messages").insert(record).execute()
     except Exception as e:
         print(f"[Supabase 삽입 오류]: {e}")
 
-# ───── 조건 감지 및 실행 ─────
 def analyze():
     try:
         markets, all_info = get_market_info()
@@ -138,7 +138,6 @@ def analyze():
         traceback.print_exc()
         send_telegram(f"[에러 발생]\n{e}")
 
-# ───── 실행 루프 ─────
 if __name__ == "__main__":
     check_connections()
     print("▶️ 3분 선행포착 시스템 작동 시작 (30초 주기)")
