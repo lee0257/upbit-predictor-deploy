@@ -1,15 +1,17 @@
 
+import os
+from supabase import create_client, Client
 from datetime import datetime, timedelta
 import requests
 import pytz
-from supabase import create_client, Client
 import time
 import traceback
 
-SUPABASE_URL = "https://gzqpbywussubofgbsydw.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-TELEGRAM_TOKEN = "7287889681:AAHqKbipumgMmRQ8J4_Zu8Nlu_CYDnbCt0U"
-TELEGRAM_CHAT_IDS = ["1901931119"]
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_IDS = [os.getenv("TELEGRAM_CHAT_ID")]
+
 DB_TABLE = "messages"
 SEND_INTERVAL_MINUTES = 30
 LOOP_INTERVAL_SECONDS = 30
@@ -34,7 +36,6 @@ def log_error(message: str):
     send_telegram_message(full_message)
 
 def notify_system_status():
-    now = datetime.now(kst).strftime("%Y-%m-%d %H:%M:%S")
     supabase_msg = "[시스템] ✅ Supabase에 연결되었습니다."
     telegram_msg = "[시스템] ✅ Telegram에 연결되었습니다."
     print(supabase_msg)
@@ -65,17 +66,20 @@ def generate_recommendation():
 
     last_sent_times[example_coin["code"]] = now
 
-    recommendations.append(f"""[추천코인1]
-- 코인명: {example_coin["code"]} ({example_coin["name"]})
-- 현재가: {example_coin["price"]}원
-- 매수 추천가: {example_coin["buy_low"]} ~ {example_coin["buy_high"]}원
-- 목표 매도가: {example_coin["target"]}원
-- 예상 수익률: {example_coin["profit"]}%
-- 예상 소요 시간: {example_coin["minutes"]}분
-- 추천 이유: {example_coin["reason"]}
-[선행급등포착]
-https://upbit.com/exchange?code=CRIX.UPBIT.{example_coin["code"]}""")
+    message = (
+        f"[추천코인1]\n"
+        f"- 코인명: {example_coin['code']} ({example_coin['name']})\n"
+        f"- 현재가: {example_coin['price']}원\n"
+        f"- 매수 추천가: {example_coin['buy_low']} ~ {example_coin['buy_high']}원\n"
+        f"- 목표 매도가: {example_coin['target']}원\n"
+        f"- 예상 수익률: {example_coin['profit']}%\n"
+        f"- 예상 소요 시간: {example_coin['minutes']}분\n"
+        f"- 추천 이유: {example_coin['reason']}\n"
+        f"[선행급등포착]\n"
+        f"https://upbit.com/exchange?code=CRIX.UPBIT.{example_coin['code']}"
+    )
 
+    recommendations.append(message)
     return recommendations
 
 def save_to_supabase(message: str):
