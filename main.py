@@ -14,25 +14,15 @@ TELEGRAM_CHAT_IDS = os.getenv("TELEGRAM_CHAT_ID", "").split(",")
 # === Supabase 연결 ===
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# === 중복 전송 차단용 캐시 ===
-last_sent_times = {}
-
-# === 한글 코인명 매핑 자동 생성 ===
-def get_korean_name_map():
-    url = "https://api.upbit.com/v1/market/all?isDetails=true"
+# === Telegram 연결 확인 ===
+def check_telegram():
     try:
-        res = requests.get(url)
-        res.raise_for_status()
-        data = res.json()
-        return {
-            item['market'].split('-')[1]: item['korean_name']
-            for item in data if item['market'].startswith("KRW-")
-        }
-    except Exception as e:
-        print(f"[에러] 한글 코인명 매핑 실패: {e}")
-        return {}
-
-KOREAN_NAME_MAP = get_korean_name_map()
+        test_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getMe"
+        response = requests.get(test_url)
+        response.raise_for_status()
+        return True
+    except:
+        return False
 
 # === 텔레그램 전송 ===
 def send_telegram(message: str):
@@ -56,7 +46,24 @@ def send_to_supabase(content: str, msg_type: str = "signal"):
     except Exception as e:
         send_telegram(f"[에러] ❌ Supabase 삽입 실패\n{str(e)}")
 
-# === 추천 메시지 생성 ===
+# === 한글 코인명 자동 매핑 ===
+def get_korean_name_map():
+    url = "https://api.upbit.com/v1/market/all?isDetails=true"
+    try:
+        res = requests.get(url)
+        res.raise_for_status()
+        data = res.json()
+        return {
+            item['market'].split('-')[1]: item['korean_name']
+            for item in data if item['market'].startswith("KRW-")
+        }
+    except Exception as e:
+        print(f"[에러] 한글 코인명 매핑 실패: {e}")
+        return {}
+
+KOREAN_NAME_MAP = get_korean_name_map()
+
+# === 메시지 생성 ===
 def create_recommendation_message(symbol, price, buy_min, buy_max, target, profit_rate, est_time, reason):
     korean = KOREAN_NAME_MAP.get(symbol, symbol)
     link = f"https://upbit.com/exchange?code=CRIX.UPBIT.{symbol}"
@@ -71,7 +78,10 @@ def create_recommendation_message(symbol, price, buy_min, buy_max, target, profi
 [선행급등포착]
 {link}"""
 
-# === 조건 감지 (예시용 로직 - 실전용 조건으로 대체 가능) ===
+# === 중복 전송 차단 ===
+last_sent_times = {}
+
+# === 조건 감지 ===
 def detect_coin():
     symbol = "DEEP"
     now = datetime.now()
@@ -89,7 +99,25 @@ def detect_coin():
     last_sent_times[symbol] = now
     return msg
 
-# === 주기 실행 ===
+# === 초기 연결 메시지 ===
+def startup_checks():
+    try:
+        if SUPABASE_URL and SUPABASE_KEY:
+            send_telegram("[시스템] ✅ Supabase에 연결되었습니다.")
+            print("[시스템] ✅ Supabase에 연결되었습니다.")
+        else:
+            send_telegram("[에러] ❌ Supabase 연결 정보 누락")
+
+        if check_telegram():
+            send_telegram("[시스템] ✅ Telegram에 연결되었습니다.")
+            print("[시스템] ✅ Telegram에 연결되었습니다.")
+        else:
+            print("[에러] Telegram 연결 실패")
+
+    except Exception as e:
+        send_telegram(f"[에러] 시스템 시작 실패\n{str(e)}")
+
+# === 루프 실행 ===
 def run_loop():
     while True:
         try:
@@ -106,5 +134,5 @@ def run_loop():
 
 # === 실행 ===
 if __name__ == "__main__":
-    send_telegram("[시스템] ✅ Upbit 실전 자동화 시스템 실행 시작")
+    startup_checks()
     run_loop()
