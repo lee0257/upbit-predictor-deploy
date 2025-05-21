@@ -1,5 +1,4 @@
-aiohttp
+
 requests
 pytz
 supabase
-python-dateutil
