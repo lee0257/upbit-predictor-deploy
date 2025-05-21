@@ -1,19 +1,16 @@
 import requests
-import json
 from datetime import datetime
 import pytz
 from supabase import create_client, Client
-import time
 
-# ✅ 최신 Supabase 정보
-SUPABASE_URL = "https://gzqpbywussubofgbsydw.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd6cXBieXd1c3N1Ym9mZ2JzeWR3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgyMzAwMDMsImV4cCI6MjA2Mzc4NjAwM30.rkE-N_mBlSYOYQnXUTuodRCfAl6ogfwl3q-j_1xguB8"
-
+# ✅ Supabase 설정 (환경변수 X)
+SUPABASE_URL = "https://hqwyfqccghosrgynckhr.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhxd3lmcWNjZ2hvc3JneW5ja2hyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgzMDA4NjgsImV4cCI6MjA2Mzg1Njg2OH0.LSRIDJZUZsQRUCPMbBfZWhp95i7Ru3IDZtFqeu5Pr4E"
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # ✅ 텔레그램 설정
 BOT_TOKEN = "7287889681:AAHqKbipumgMmRQ8J4_Zu8Nlu_CYDnbCt0U"
-CHAT_IDS = ["1901931119"]  # 알림 받을 대상들
+CHAT_IDS = ["1901931119"]  # 알림 대상
 TEXT = """
 [추천코인1]
 - 코인명: 카이토 (KAITO)
@@ -28,15 +25,15 @@ TEXT = """
 2025-05-21
 """
 
-# ✅ 메시지 전송 함수
+# ✅ 메시지 전송
 def send_telegram_message(text):
     for chat_id in CHAT_IDS:
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
         data = {"chat_id": chat_id, "text": text}
         response = requests.post(url, data=data)
-        print(f"[텔레그램 응답] {response.text}")
+        print("[텔레그램 응답]", response.text)
 
-# ✅ Supabase 저장 함수
+# ✅ Supabase 저장
 def save_to_supabase(text):
     now = datetime.now(pytz.timezone("Asia/Seoul"))
     timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
@@ -46,7 +43,7 @@ def save_to_supabase(text):
     except Exception as e:
         print("[DB 저장 실패]", e)
 
-# ✅ 메인 실행
+# ✅ 실행
 if __name__ == "__main__":
     print("▶ 실행 시작 - 전체 로직 동작")
     send_telegram_message(TEXT)
