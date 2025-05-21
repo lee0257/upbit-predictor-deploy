@@ -1,17 +1,15 @@
 
-import os
-from supabase import create_client, Client
 from datetime import datetime, timedelta
 import requests
 import pytz
 import time
 import traceback
+from supabase import create_client, Client
 
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_IDS = [os.getenv("TELEGRAM_CHAT_ID")]
-
+SUPABASE_URL = "https://zkrdvcynslbyzhpyguor.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InprcmR2Y3luc2xieXpocHlndW9yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTEwODM1OTUsImV4cCI6MjA2NjY0OTU5NX0.fq5zQuT8LTSNfKldfHpb9lNYP8Rmi53A_yz3hvH8y5U"
+TELEGRAM_TOKEN = "7287889681:AAHqKbipumgMmRQ8J4_Zu8Nlu_CYDnbCt0U"
+TELEGRAM_CHAT_IDS = ["1901931119"]
 DB_TABLE = "messages"
 SEND_INTERVAL_MINUTES = 30
 LOOP_INTERVAL_SECONDS = 30
@@ -22,8 +20,6 @@ last_sent_times = {}
 
 def send_telegram_message(message: str):
     for chat_id in TELEGRAM_CHAT_IDS:
-        if not chat_id:
-            continue
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
         payload = {"chat_id": chat_id, "text": message}
         try:
@@ -39,7 +35,6 @@ def log_error(message: str):
 
 def notify_system_status():
     try:
-        print("[DEBUG] notify_system_status() 진입")
         supabase_msg = "[시스템] ✅ Supabase에 연결되었습니다."
         telegram_msg = "[시스템] ✅ Telegram에 연결되었습니다."
         print(supabase_msg)
