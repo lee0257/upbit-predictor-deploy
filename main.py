@@ -12,7 +12,11 @@ TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_IDS = os.getenv("TELEGRAM_CHAT_ID", "").split(",")
 
 # === Supabase 연결 ===
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+try:
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    print("[시스템] ✅ Supabase 클라이언트 객체 생성 완료")
+except Exception as e:
+    print(f"[에러] ❌ Supabase 클라이언트 생성 실패: {e}")
 
 # === Telegram 연결 확인 ===
 def check_telegram():
@@ -21,16 +25,21 @@ def check_telegram():
         response = requests.get(test_url)
         response.raise_for_status()
         return True
-    except:
+    except Exception as e:
+        print(f"[에러] Telegram 연결 확인 실패: {e}")
         return False
 
 # === 텔레그램 전송 ===
 def send_telegram(message: str):
+    if not TELEGRAM_CHAT_IDS or TELEGRAM_CHAT_IDS == ['']:
+        print("[경고] TELEGRAM_CHAT_IDS 환경변수가 비어 있음. 전송 생략")
+        return
     for chat_id in TELEGRAM_CHAT_IDS:
         try:
             url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
             payload = {"chat_id": chat_id.strip(), "text": message}
-            requests.post(url, json=payload)
+            response = requests.post(url, json=payload)
+            response.raise_for_status()
         except Exception as e:
             print(f"[에러] Telegram 전송 실패: {e}")
 
@@ -42,9 +51,11 @@ def send_to_supabase(content: str, msg_type: str = "signal"):
             "type": msg_type,
             "created_at": datetime.now().isoformat()
         }
-        supabase.table(SUPABASE_TABLE_NAME).insert(data).execute()
+        print(f"[디버그] Supabase 삽입 데이터: {data}")
+        result = supabase.table(SUPABASE_TABLE_NAME).insert(data).execute()
+        print(f"[시스템] ✅ Supabase 삽입 성공: {result}")
     except Exception as e:
-        print(f"[에러] ❌ Supabase 삽입 실패: {e}")  # 콘솔 출력 추가
+        print(f"[에러] ❌ Supabase 삽입 실패: {e}")
         send_telegram(f"[에러] ❌ Supabase 삽입 실패\n{str(e)}")
 
 # === 한글 코인명 자동 매핑 ===
@@ -107,6 +118,7 @@ def startup_checks():
             send_telegram("[시스템] ✅ Supabase에 연결되었습니다.")
             print("[시스템] ✅ Supabase에 연결되었습니다.")
         else:
+            print("[에러] Supabase 환경변수 누락")
             send_telegram("[에러] ❌ Supabase 연결 정보 누락")
 
         if check_telegram():
