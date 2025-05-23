@@ -9,6 +9,15 @@ from datetime import datetime, timedelta
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_IDS = os.getenv("CHAT_IDS", "").split(",")
 
+# === 📘 한글 코인명 매핑 ===
+KOREAN_NAMES = {
+    "KRW-SUI": "수이",
+    "KRW-ARB": "아비트럼",
+    "KRW-HIFI": "하이파이",
+    "KRW-SAND": "샌드박스",
+    "KRW-STRK": "스트라이크"
+}
+
 # === ✉️ 텔레그램 전송 ===
 def send_telegram_message(message: str):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -24,10 +33,19 @@ def send_telegram_message(message: str):
         except Exception as e:
             print("[오류] 텔레그램 전송 실패:", e)
 
+# === 🔍 텔레그램 연결 확인 ===
+def test_telegram_connectivity():
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getMe"
+    try:
+        res = requests.get(url, timeout=10)
+        print("[텔레그램 연결 상태]", res.status_code, res.text)
+    except Exception as e:
+        print("[오류] 텔레그램 연결 테스트 실패:", e)
+
 # === 📡 업비트 WebSocket 실시간 감시 ===
 async def upbit_ws():
     uri = "wss://api.upbit.com/websocket/v1"
-    tracked_coins = ["KRW-SUI", "KRW-ARB", "KRW-HIFI", "KRW-SAND", "KRW-STRK"]
+    tracked_coins = list(KOREAN_NAMES.keys())
     subscribe_data = [
         {"ticket": "coin_alert"},
         {"type": "trade", "codes": tracked_coins, "isOnlyRealtime": True}
@@ -47,7 +65,6 @@ async def upbit_ws():
 
                 code = trade.get("code")
                 trade_volume = float(trade.get("trade_volume", 0))
-                trade_price = int(trade.get("trade_price", 0))
                 timestamp = datetime.fromtimestamp(trade["timestamp"] / 1000)
 
                 if not code or trade_volume == 0:
@@ -59,17 +76,12 @@ async def upbit_ws():
                 sum_volume = sum(v for _, v in recent_trades[code])
 
                 if sum_volume > 50 and datetime.now() - last_alert_time[code] > timedelta(minutes=30):
-                    coin_name = code.replace("KRW-", "")
+                    symbol = code.replace("KRW-", "")
+                    kor_name = KOREAN_NAMES.get(code, "")
                     message = (
-                        f"[추천코인1]\n"
-                        f"- 코인명: {coin_name} ({code})\n"
-                        f"- 현재가: {trade_price:,}원\n"
-                        f"- 매수 추천가: {trade_price-1:,} ~ {trade_price+2:,}원\n"
-                        f"- 목표 매도가: {int(trade_price * 1.03):,}원\n"
-                        f"- 예상 수익률: 3% 이상\n"
-                        f"- 예상 소요 시간: 10~30분\n"
-                        f"- 추천 이유: 체결량 급증 + 매수 강세 포착\n"
-                        f"[선행급등포착]"
+                        f"[급등포착]\n"
+                        f"- 코인: {symbol} ({kor_name})\n"
+                        f"- 조건: 체결량 급증 + 매수세 유입"
                     )
                     send_telegram_message(message)
                     last_alert_time[code] = datetime.now()
@@ -80,5 +92,6 @@ async def upbit_ws():
 
 # === 🚀 실행 ===
 if __name__ == "__main__":
+    test_telegram_connectivity()
     send_telegram_message("🔔 텔레그램 연결되었습니다 (Render 실전 자동 포착 시스템 작동 중)")
     asyncio.run(upbit_ws())
