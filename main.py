@@ -4,10 +4,9 @@ import json
 import requests
 from datetime import datetime, timedelta
 
-TELEGRAM_TOKEN = "7287889681:AAHqKbipumgMmRQ8J4_Zu8Nlu_CYDnbCt0U"
+TELEGRAM_TOKEN = "7287889681:AAGyEtY0cPv-4i6g-X2sTMAxWuY-gAa63IO"
 CHAT_IDS = ["1901931119"]
 
-# === 전체 업비트 KRW 마켓 코인 로드 ===
 def load_krw_markets():
     url = "https://api.upbit.com/v1/market/all"
     try:
@@ -19,7 +18,6 @@ def load_krw_markets():
         print("[업비트 마켓 목록 오류]", e)
         return {}
 
-# === 텔레그램 메시지 전송 ===
 def send_telegram_message(message: str):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     for chat_id in CHAT_IDS:
@@ -34,7 +32,6 @@ def send_telegram_message(message: str):
         except Exception as e:
             print("[오류] 텔레그램 전송 실패:", e)
 
-# === 텔레그램 연결 확인 ===
 def test_telegram_connectivity():
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getMe"
     print("[디버그] 요청 URL:", url)
@@ -47,7 +44,6 @@ def test_telegram_connectivity():
         print("[오류] 텔레그램 연결 테스트 실패:", e)
         raise SystemExit("❌ 텔레그램 연결 실패로 시스템 종료")
 
-# === 실시간 감시 ===
 async def upbit_ws(krw_map):
     uri = "wss://api.upbit.com/websocket/v1"
     codes = list(krw_map.keys())
@@ -95,7 +91,6 @@ async def upbit_ws(krw_map):
                 print("[WebSocket 오류]", e)
                 await asyncio.sleep(5)
 
-# === 실행 ===
 if __name__ == "__main__":
     test_telegram_connectivity()
     send_telegram_message("🔔 텔레그램 연결되었습니다 (실전 자동 포착 시스템 작동 중)")
