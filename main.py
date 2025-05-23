@@ -7,21 +7,22 @@ from datetime import datetime, timedelta
 
 # === 🔐 환경변수 설정 ===
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")
+CHAT_IDS = os.getenv("CHAT_IDS", "").split(",")
 
 # === ✉️ 텔레그램 전송 ===
 def send_telegram_message(message: str):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": CHAT_ID,
-        "text": message,
-        "parse_mode": "Markdown"
-    }
-    try:
-        res = requests.post(url, json=payload, timeout=10)
-        print("[텔레그램 전송]", res.status_code, res.text)
-    except Exception as e:
-        print("[오류] 텔레그램 전송 실패:", e)
+    for chat_id in CHAT_IDS:
+        payload = {
+            "chat_id": chat_id.strip(),
+            "text": message,
+            "parse_mode": "Markdown"
+        }
+        try:
+            res = requests.post(url, json=payload, timeout=10)
+            print("[텔레그램 전송]", res.status_code, res.text)
+        except Exception as e:
+            print("[오류] 텔레그램 전송 실패:", e)
 
 # === 📡 업비트 WebSocket 실시간 감시 ===
 async def upbit_ws():
@@ -57,7 +58,6 @@ async def upbit_ws():
 
                 sum_volume = sum(v for _, v in recent_trades[code])
 
-                # 조건: 10초간 체결량 급증 + 중복 알림 방지
                 if sum_volume > 50 and datetime.now() - last_alert_time[code] > timedelta(minutes=30):
                     coin_name = code.replace("KRW-", "")
                     message = (
@@ -80,4 +80,5 @@ async def upbit_ws():
 
 # === 🚀 실행 ===
 if __name__ == "__main__":
+    send_telegram_message("🔔 텔레그램 연결되었습니다 (Render 실전 자동 포착 시스템 작동 중)")
     asyncio.run(upbit_ws())
