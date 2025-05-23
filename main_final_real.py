@@ -4,8 +4,6 @@ import os
 
 # === 🔐 환경 변수 기반 설정값 ===
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
-
-# 🔽 CHAT_IDS 처리: 콤마 구분 여러 ID 가능
 CHAT_IDS_RAW = os.environ.get("CHAT_IDS", "")
 CHAT_IDS = CHAT_IDS_RAW.split(",") if CHAT_IDS_RAW else []
 
@@ -50,7 +48,16 @@ async def send_message(request: Request):
 
     return {"status": "success", "message": "✅ 텔레그램 전송 완료"}
 
-# === 🟢 GET: 서버 연결 확인 라우트 ===
+# === 🌐 GET: URL로 메시지 전송 테스트 ===
+@app.get("/send")
+def send_get_message(msg: str = "🔥 기본 메시지입니다"):
+    try:
+        send_telegram_message(msg)
+        return {"status": "success", "message": "✅ 텔레그램 전송 완료"}
+    except Exception:
+        return {"status": "fail", "message": "❌ 전송 실패"}
+
+# === 🟢 서버 상태 확인 ===
 @app.get("/")
 def root():
     return {"status": "OK", "message": "서버 연결되었습니다 ✅"}
