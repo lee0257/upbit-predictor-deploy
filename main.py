@@ -5,9 +5,9 @@ import os
 import requests
 from datetime import datetime, timedelta
 
-# === 🔐 환경변수 설정 ===
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-CHAT_IDS = os.getenv("CHAT_IDS", "").split(",")
+# === 🔐 하드코딩 설정값 (확실한 실전 작동 기준) ===
+TELEGRAM_TOKEN = "7287889681:AAHqKbipumgMmRQ8J4_Zu8Nlu_CYDnbCt0U"
+CHAT_IDS = ["1901931119"]
 
 # === 📘 한글 코인명 매핑 ===
 KOREAN_NAMES = {
@@ -23,7 +23,7 @@ def send_telegram_message(message: str):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     for chat_id in CHAT_IDS:
         payload = {
-            "chat_id": chat_id.strip(),
+            "chat_id": chat_id,
             "text": message,
             "parse_mode": "Markdown"
         }
@@ -93,5 +93,5 @@ async def upbit_ws():
 # === 🚀 실행 ===
 if __name__ == "__main__":
     test_telegram_connectivity()
-    send_telegram_message("🔔 텔레그램 연결되었습니다 (Render 실전 자동 포착 시스템 작동 중)")
+    send_telegram_message("🔔 텔레그램 연결되었습니다 (실전 자동 포착 시스템 작동 중)")
     asyncio.run(upbit_ws())
