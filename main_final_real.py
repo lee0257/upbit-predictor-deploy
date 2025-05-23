@@ -4,17 +4,24 @@ import os
 
 # === 🔐 환경 변수 기반 설정값 ===
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
-CHAT_IDS = [os.environ.get("CHAT_IDS")]
+
+# 🔽 CHAT_IDS 처리: 콤마 구분 여러 ID 가능
+CHAT_IDS_RAW = os.environ.get("CHAT_IDS", "")
+CHAT_IDS = CHAT_IDS_RAW.split(",") if CHAT_IDS_RAW else []
 
 # === 🚀 FastAPI 앱 시작 ===
 app = FastAPI()
 
 # === ✉️ 텔레그램 메시지 전송 함수 ===
 def send_telegram_message(message: str):
+    if not TELEGRAM_TOKEN or not CHAT_IDS:
+        print("[오류] TELEGRAM_TOKEN 또는 CHAT_IDS가 설정되지 않음")
+        return
+
     for chat_id in CHAT_IDS:
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
         payload = {
-            "chat_id": chat_id,
+            "chat_id": chat_id.strip(),
             "text": message,
             "parse_mode": "Markdown"
         }
