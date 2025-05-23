@@ -35,16 +35,44 @@ def insert_to_supabase(message: str):
     except Exception as e:
         print(f"[오류] Supabase 저장 실패: {e}")
 
+# === 💡 조건 감지 로직 ===
+def is_valid_coin(coin_data):
+    try:
+        return (
+            coin_data["trade_amount"] >= 1000000000 and
+            coin_data["volume_ratio"] >= 3 and
+            coin_data["buy_ratio"] >= 70 and
+            coin_data["price_change"] < 10
+        )
+    except:
+        return False
+
 # === 📩 메시지 전송 API ===
 @app.post("/send-message")
 async def send_message(request: Request):
     data = await request.json()
-    message = data.get("message", "")
-    if not message:
-        return {"status": "fail", "message": "❌ 메시지가 비어 있음"}
+    coin_data = data.get("coin_data", {})
+    coin_name = coin_data.get("name", "알 수 없음")
+    price = coin_data.get("price", 0)
+
+    if not is_valid_coin(coin_data):
+        return {"status": "ignored", "message": "⛔️ 조건 미충족"}
+
+    message = (
+        f"[추천코인]\n"
+        f"- 코인명: {coin_name}\n"
+        f"- 현재가: {price}원\n"
+        f"- 매수 추천가: {int(price*0.99)} ~ {int(price*1.01)}원\n"
+        f"- 목표 매도가: {int(price*1.03)}원\n"
+        f"- 예상 수익률: +3%\n"
+        f"- 예상 소요 시간: 10~180분\n"
+        f"- 추천 이유: 체결량 급증 + 매수 강세 포착\n"
+        f"[선행급등포착]"
+    )
+
     send_telegram_message(message)
     insert_to_supabase(message)
-    return {"status": "success", "message": "✅ 메시지 전송 및 기록 완료"}
+    return {"status": "success", "message": "✅ 실전 메시지 전송 완료"}
 
 # === 🟢 서버 상태 확인 ===
 @app.get("/")
