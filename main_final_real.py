@@ -4,7 +4,7 @@ import json
 import requests
 from datetime import datetime, timedelta
 
-TELEGRAM_TOKEN = "7287889681:AAGyEtY0cPv-4i6g-X2sTMAxWuY-gAa63IO"
+TELEGRAM_TOKEN = "7566936486:AAFS40d-M4uREswTvsGkPWL6vscuhvqdroQ"
 CHAT_IDS = ["1901931119"]
 
 def load_krw_markets():
