@@ -1,7 +1,6 @@
 from pathlib import Path
 
-# 지침 반영: 시작 시 Supabase 연결, 텔레그램 확인 메시지 전송, Supabase 테스트 삽입 포함한 완성형 코드
-final_verified_code = """
+final_production_code = """
 import asyncio
 import json
 import websockets
@@ -47,16 +46,16 @@ async def send_telegram_message(msg):
         payload = {"chat_id": chat_id, "text": msg, "parse_mode": "Markdown"}
         try:
             res = requests.post(url, json=payload)
-            print("텔레그램 응답:", res.status_code, res.text)
+            print("📤 텔레그램 전송 응답:", res.status_code, res.text)
         except Exception as e:
-            print("텔레그램 전송 실패:", e)
+            print("❌ 텔레그램 전송 실패:", e)
 
 def save_to_supabase(data):
     try:
         supabase.table(TABLE_NAME).insert(data).execute()
         print("✅ Supabase 저장 완료:", data["coin"])
     except Exception as e:
-        print("Supabase 저장 실패:", e)
+        print("❌ Supabase 저장 실패:", e)
 
 def format_message(market, price, rate, strength, volume):
     names = coin_meta[market]
@@ -110,13 +109,13 @@ async def handle_socket():
 
 async def main():
     print("✅ Supabase 연결 확인됨:", SUPABASE_URL)
-    print("✅ 텔레그램 토큰 시작됨:", TELEGRAM_TOKEN[:10] + "...")
+    print("✅ 텔레그램 토큰 감지됨:", TELEGRAM_TOKEN[:10] + "...")
 
-    await send_telegram_message("✅ 텔레그램 연결 확인되었습니다.")
+    await send_telegram_message("✅ 텔레그램 연결 확인: 시스템이 작동을 시작했습니다.")
 
     save_to_supabase({
-        "coin": "TEST",
-        "korean_name": "테스트",
+        "coin": "SYSTEM_CHECK",
+        "korean_name": "시스템 연결확인",
         "price": 0,
         "rate_change": 0,
         "strength": 0,
@@ -126,13 +125,14 @@ async def main():
     })
 
     await fetch_market_codes()
+    print("✅ 업비트 종목 메타 수집 완료 (총", len(coin_meta), "종목)")
     await handle_socket()
 
 if __name__ == "__main__":
     asyncio.run(main())
 """
 
-file_path = Path("/mnt/data/main_final_real.py")
-file_path.write_text(final_verified_code.strip(), encoding="utf-8")
+file_path = Path("/mnt/data/main.py")
+file_path.write_text(final_production_code.strip(), encoding="utf-8")
 
 file_path.name
