@@ -1,3 +1,7 @@
+from pathlib import Path
+
+# 지침 반영: 시작 시 Supabase 연결, 텔레그램 확인 메시지 전송, Supabase 테스트 삽입 포함한 완성형 코드
+final_verified_code = """
 import asyncio
 import json
 import websockets
@@ -56,7 +60,11 @@ def save_to_supabase(data):
 
 def format_message(market, price, rate, strength, volume):
     names = coin_meta[market]
-    return f"[추천] {names['english_name']} ({names['korean_name']})\n" +            f"- 현재가: {int(price):,}원 (+{rate:.2f}%)\n" +            f"- 체결강도: {strength:.1f}%\n" +            f"- 거래대금(3분): {volume/1e8:.2f}억\n" +            f"- 판단: 진입 검토 가능"
+    return f"[추천] {names['english_name']} ({names['korean_name']})\\n" + \
+           f"- 현재가: {int(price):,}원 (+{rate:.2f}%)\\n" + \
+           f"- 체결강도: {strength:.1f}%\\n" + \
+           f"- 거래대금(3분): {volume/1e8:.2f}억\\n" + \
+           f"- 판단: 진입 검토 가능"
 
 async def handle_socket():
     uri = "wss://api.upbit.com/websocket/v1"
@@ -102,10 +110,29 @@ async def handle_socket():
 
 async def main():
     print("✅ Supabase 연결 확인됨:", SUPABASE_URL)
-    print("✅ 텔레그램 연결 토큰 확인됨:", TELEGRAM_TOKEN[:10] + "...")
+    print("✅ 텔레그램 토큰 시작됨:", TELEGRAM_TOKEN[:10] + "...")
+
+    await send_telegram_message("✅ 텔레그램 연결 확인되었습니다.")
+
+    save_to_supabase({
+        "coin": "TEST",
+        "korean_name": "테스트",
+        "price": 0,
+        "rate_change": 0,
+        "strength": 0,
+        "volume": 0,
+        "judgement": "시작 확인용",
+        "sent_at": datetime.utcnow().isoformat()
+    })
 
     await fetch_market_codes()
     await handle_socket()
 
 if __name__ == "__main__":
     asyncio.run(main())
+"""
+
+file_path = Path("/mnt/data/main_final_real.py")
+file_path.write_text(final_verified_code.strip(), encoding="utf-8")
+
+file_path.name
