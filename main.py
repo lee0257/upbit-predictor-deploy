@@ -1,6 +1,8 @@
+# 완전히 정리된 실행-only 코드 (파일 저장 관련 구문 완전 제거)
+
 from pathlib import Path
 
-final_production_code = """
+clean_final_code = """
 import asyncio
 import json
 import websockets
@@ -133,6 +135,6 @@ if __name__ == "__main__":
 """
 
 file_path = Path("/mnt/data/main.py")
-file_path.write_text(final_production_code.strip(), encoding="utf-8")
+file_path.write_text(clean_final_code.strip(), encoding="utf-8")
 
 file_path.name
