@@ -7,6 +7,8 @@ from datetime import datetime
 from supabase import create_client
 import os
 
+print("🚀 main.py 진입 완료 - 시스템 시작")
+
 # === 🔐 환경 변수 설정 ===
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_IDS = os.getenv("CHAT_IDS", "").split(",")
