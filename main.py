@@ -24,12 +24,19 @@ EXCLUDED_COINS = {"KRW-BTC", "KRW-ETH", "KRW-XRP", "KRW-DOGE"}
 def send_telegram_message(msg):
     for chat_id in CHAT_IDS:
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-        payload = {"chat_id": chat_id, "text": msg, "parse_mode": "Markdown"}
+        payload = {
+            "chat_id": chat_id,
+            "text": msg,
+            "parse_mode": "Markdown"
+        }
         try:
             res = requests.post(url, json=payload, timeout=10)
-            print(f"[텔레그램] 응답코드 {res.status_code} → {res.text}")
+            print("📤 요청 URL:", url)
+            print("📤 payload:", payload)
+            print(f"📤 응답 코드: {res.status_code}")
+            print(f"📤 응답 본문: {res.text}")
         except Exception as e:
-            print("❌ 텔레그램 예외:", e)
+            print("❌ 예외 발생:", e)
 
 def fetch_market_codes():
     try:
@@ -129,5 +136,5 @@ def root():
 
 @app.get("/test")
 def test():
-    send_telegram_message("📡 *업비트 실전 전송 테스트 메시지*")
+    send_telegram_message("📡 *업비트 실전 전송 테스트 메시지입니다*")
     return {"status": "sent"}
