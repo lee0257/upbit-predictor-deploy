@@ -26,10 +26,10 @@ def send_telegram_message(msg):
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
         payload = {"chat_id": chat_id, "text": msg, "parse_mode": "Markdown"}
         try:
-            res = requests.post(url, json=payload)
-            print("📤 텔레그램 전송:", res.status_code, res.text)
+            res = requests.post(url, json=payload, timeout=10)
+            print(f"📤 전송 응답: {res.status_code} - {res.text}")
         except Exception as e:
-            print("❌ 전송 실패:", e)
+            print("❌ 텔레그램 전송 실패:", e)
 
 def fetch_market_codes():
     try:
@@ -44,7 +44,7 @@ def fetch_market_codes():
                     "english_name": code.replace("KRW-", ""),
                     "korean_name": market["korean_name"]
                 }
-        print("✅ 종목 메타 수집 완료:", len(coin_meta), "종목")
+        print("✅ 종목 메타 수집 완료:", len(coin_meta))
     except Exception as e:
         print("❌ 메타 수집 실패:", e)
 
@@ -58,7 +58,6 @@ async def handle_socket():
 
     async with websockets.connect(uri) as ws:
         await ws.send(json.dumps(payload))
-
         while True:
             try:
                 msg = await ws.recv()
@@ -121,8 +120,8 @@ app = FastAPI()
 @app.on_event("startup")
 def startup_event():
     thread = threading.Thread(target=start_background_task)
+    thread.daemon = True  # FastAPI 종료되지 않게 유지
     thread.start()
-    thread.join()  # 컨테이너 종료 방지
 
 @app.get("/")
 def root():
