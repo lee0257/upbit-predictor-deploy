@@ -1,45 +1,29 @@
+from fastapi import FastAPI
 import asyncio
 import json
 import websockets
 import requests
 import time
-from datetime import datetime
-from supabase import create_client
+from datetime import datetime, timedelta
 import os
+import threading
 
-print("🚀 main.py 진입 완료 - 시스템 시작")
+print("🚀 단타 실전포착 전략 시스템 시작")
 
-# === 🔐 환경 변수 설정 ===
+# === 🔐 설정값 ===
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_IDS = os.getenv("CHAT_IDS", "").split(",")
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-TABLE_NAME = "recommendations"
-
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-
-# === 📌 조건 기준 ===
-MIN_STRENGTH = 200
-MIN_RATE = 2.0
-MIN_VOLUME = 1e8
 
 coin_meta = {}
 base_prices = {}
+volume_window = {}
+strength_window = {}
 last_sent = {}
 
-async def fetch_market_codes():
-    url = "https://api.upbit.com/v1/market/all?isDetails=true"
-    response = requests.get(url)
-    markets = response.json()
-    for market in markets:
-        if market["market"].startswith("KRW-"):
-            code = market["market"]
-            coin_meta[code] = {
-                "english_name": code.replace("KRW-", ""),
-                "korean_name": market["korean_name"]
-            }
+EXCLUDED_COINS = {"KRW-BTC", "KRW-ETH", "KRW-XRP", "KRW-DOGE"}
 
-async def send_telegram_message(msg):
+# === ✉️ 텔레그램 전송 ===
+def send_telegram_message(msg):
     for chat_id in CHAT_IDS:
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
         payload = {"chat_id": chat_id, "text": msg, "parse_mode": "Markdown"}
@@ -49,79 +33,101 @@ async def send_telegram_message(msg):
         except Exception as e:
             print("❌ 텔레그램 전송 실패:", e)
 
-def save_to_supabase(data):
+# === 🧩 업비트 종목 메타 수집 ===
+def fetch_market_codes():
     try:
-        supabase.table(TABLE_NAME).insert(data).execute()
-        print("✅ Supabase 저장 완료:", data["coin"])
+        url = "https://api.upbit.com/v1/market/all?isDetails=true"
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        markets = response.json()
+        for market in markets:
+            if market["market"].startswith("KRW-") and market["market"] not in EXCLUDED_COINS:
+                code = market["market"]
+                coin_meta[code] = {
+                    "english_name": code.replace("KRW-", ""),
+                    "korean_name": market["korean_name"]
+                }
+        print("✅ 종목 메타 수집 완료 (총", len(coin_meta), "종목)")
     except Exception as e:
-        print("❌ Supabase 저장 실패:", e)
+        print("❌ 업비트 메타 수집 실패:", e)
 
-def format_message(market, price, rate, strength, volume):
-    names = coin_meta[market]
-    return f"[추천] {names['english_name']} ({names['korean_name']})\n" +            f"- 현재가: {int(price):,}원 (+{rate:.2f}%)\n" +            f"- 체결강도: {strength:.1f}%\n" +            f"- 거래대금(3분): {volume/1e8:.2f}억\n" +            f"- 판단: 진입 검토 가능"
-
+# === 📡 실시간 시세 수신 및 조건 포착 ===
 async def handle_socket():
     uri = "wss://api.upbit.com/websocket/v1"
     codes = list(coin_meta.keys())
-    payload = [{"ticket": "gpt-final"}, {"type": "ticker", "codes": codes}]
+    payload = [{"ticket": "live-trade"}, {"type": "ticker", "codes": codes}]
+    os.makedirs("logs", exist_ok=True)
+    kst_now = datetime.utcnow() + timedelta(hours=9)
+    today_str = kst_now.strftime("%Y-%m-%d")
+    log_path = f"logs/{today_str}.csv"
+
     async with websockets.connect(uri) as ws:
         await ws.send(json.dumps(payload))
-        time_check = time.time()
 
         while True:
             msg = await ws.recv()
             data = json.loads(msg)
             market = data["code"]
-            trade_price = data["trade_price"]
+            price = data["trade_price"]
             acc_volume = data["acc_trade_price_24h"]
-            strength = data.get("acc_ask_volume", 1) / max(data.get("acc_bid_volume", 1), 1) * 100
+            bid = data.get("acc_bid_volume", 1)
+            ask = data.get("acc_ask_volume", 1)
+            strength = ask / max(bid, 1) * 100
             now = time.time()
 
-            if market not in base_prices or now - time_check > 180:
-                base_prices[market] = trade_price
+            if market not in base_prices:
+                base_prices[market] = price
+                volume_window[market] = []
+                strength_window[market] = []
 
-            if market in base_prices:
-                rate = ((trade_price - base_prices[market]) / base_prices[market]) * 100
-                if rate >= MIN_RATE and strength >= MIN_STRENGTH and acc_volume >= MIN_VOLUME:
-                    if market not in last_sent or now - last_sent[market] > 300:
-                        msg_text = format_message(market, trade_price, rate, strength, acc_volume)
-                        await send_telegram_message(msg_text)
+            rate = ((price - base_prices[market]) / base_prices[market]) * 100
 
-                        save_to_supabase({
-                            "coin": market,
-                            "korean_name": coin_meta[market]["korean_name"],
-                            "price": trade_price,
-                            "rate_change": rate,
-                            "strength": strength,
-                            "volume": acc_volume,
-                            "judgement": "진입 검토 가능",
-                            "sent_at": datetime.utcnow().isoformat()
-                        })
+            volume_window[market].append((now, acc_volume))
+            volume_window[market] = [v for v in volume_window[market] if now - v[0] <= 30]
+            volume_diff = volume_window[market][-1][1] - volume_window[market][0][1] if len(volume_window[market]) >= 2 else 0
 
-                        last_sent[market] = now
-            if now - time_check > 180:
-                time_check = now
+            strength_window[market].append((now, strength))
+            strength_window[market] = [s for s in strength_window[market] if now - s[0] <= 30]
+            strength_diff = strength_window[market][-1][1] - strength_window[market][0][1] if len(strength_window[market]) >= 2 else 0
 
-async def main():
-    print("✅ Supabase 연결 확인됨:", SUPABASE_URL)
-    print("✅ 텔레그램 토큰 감지됨:", TELEGRAM_TOKEN[:10] + "...")
+            kst_now = datetime.utcnow() + timedelta(hours=9)
+            if acc_volume > 1e8 or strength > 100:
+                timestamp_str = kst_now.isoformat()
+                with open(log_path, "a", encoding="utf-8") as f:
+                    f.write(f"{timestamp_str},{market},{price},{acc_volume},{strength:.2f},{rate:.2f}\n")
 
-    await send_telegram_message("✅ 텔레그램 연결 확인: 시스템이 작동을 시작했습니다.")
+            volume_threshold = 0.7e8
 
-    save_to_supabase({
-        "coin": "SYSTEM_CHECK",
-        "korean_name": "시스템 연결확인",
-        "price": 0,
-        "rate_change": 0,
-        "strength": 0,
-        "volume": 0,
-        "judgement": "시작 확인용",
-        "sent_at": datetime.utcnow().isoformat()
-    })
+            if (
+                volume_diff >= volume_threshold and
+                strength_diff >= 20 and
+                0.3 <= rate <= 4.5 and
+                (market not in last_sent or now - last_sent[market] > 600)
+            ):
+                names = coin_meta[market]
+                msg = f"[실전포착] {names['english_name']} ({names['korean_name']})\n" + \
+                      f"- 현재가: {int(price):,}원 (+{rate:.2f}%)\n" + \
+                      f"- 체결강도 변화: {strength_diff:.1f}%\n" + \
+                      f"- 거래대금 증가: {volume_diff / 1e8:.2f}억 (30초 기준)\n" + \
+                      f"- 판단: 상승 조짐 감지. 진입 여부 판단 요망."
+                send_telegram_message(msg)
+                last_sent[market] = now
 
-    await fetch_market_codes()
-    print("✅ 업비트 종목 메타 수집 완료 (총", len(coin_meta), "종목)")
-    await handle_socket()
+# === 백그라운드 태스크 실행 래퍼 ===
+def start_background_task():
+    fetch_market_codes()
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(handle_socket())
 
-if __name__ == "__main__":
-    asyncio.run(main())
+# === FastAPI 앱 실행 ===
+app = FastAPI()
+
+@app.on_event("startup")
+def startup_event():
+    thread = threading.Thread(target=start_background_task)
+    thread.start()
+
+@app.get("/")
+def root():
+    return {"status": "OK", "message": "Render 실전 전략 서버 실행 중 ✅"}
