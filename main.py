@@ -11,7 +11,7 @@ import threading
 print("🚀 단타 실전포착 전략 시스템 시작")
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-CHAT_IDS = os.getenv("CHAT_IDS", "").replace("[", "").replace("]", "").replace('"', '').split(",")
+CHAT_IDS = [chat_id.strip() for chat_id in os.getenv("CHAT_IDS", "").split(",") if chat_id.strip()]
 
 coin_meta = {}
 base_prices = {}
@@ -27,9 +27,12 @@ def send_telegram_message(msg):
         payload = {"chat_id": chat_id, "text": msg, "parse_mode": "Markdown"}
         try:
             res = requests.post(url, json=payload, timeout=10)
-            print(f"📤 전송 응답: {res.status_code} - {res.text}")
+            if res.status_code != 200:
+                print(f"❌ 전송 실패: {res.status_code} - {res.text}")
+            else:
+                print(f"📤 전송 성공: {res.status_code} - {res.text}")
         except Exception as e:
-            print("❌ 텔레그램 전송 실패:", e)
+            print("❌ 텔레그램 예외 발생:", e)
 
 def fetch_market_codes():
     try:
@@ -120,9 +123,14 @@ app = FastAPI()
 @app.on_event("startup")
 def startup_event():
     thread = threading.Thread(target=start_background_task)
-    thread.daemon = True  # FastAPI 종료되지 않게 유지
+    thread.daemon = True
     thread.start()
 
 @app.get("/")
 def root():
     return {"status": "OK", "message": "실전 급등 포착 서버 작동 중 ✅"}
+
+@app.get("/test")
+def test():
+    send_telegram_message("✅ *업비트 실전 급등 테스트 메시지*")
+    return {"status": "sent"}
