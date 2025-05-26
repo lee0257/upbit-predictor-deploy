@@ -10,8 +10,7 @@ import threading
 
 print("🚀 단타 실전포착 전략 시스템 시작")
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-CHAT_IDS = [chat_id.strip() for chat_id in os.getenv("CHAT_IDS", "").split(",") if chat_id.strip()]
+SLACK_WEBHOOK_URL = "https://hooks.slack.com/services/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"
 
 coin_meta = {}
 base_prices = {}
@@ -21,22 +20,15 @@ last_sent = {}
 
 EXCLUDED_COINS = {"KRW-BTC", "KRW-ETH", "KRW-XRP", "KRW-DOGE"}
 
-def send_telegram_message(msg):
-    for chat_id in CHAT_IDS:
-        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-        payload = {
-            "chat_id": chat_id,
-            "text": msg,
-            "parse_mode": "Markdown"
-        }
-        try:
-            res = requests.post(url, json=payload, timeout=10)
-            print("📤 요청 URL:", url)
-            print("📤 payload:", payload)
-            print(f"📤 응답 코드: {res.status_code}")
-            print(f"📤 응답 본문: {res.text}")
-        except Exception as e:
-            print("❌ 예외 발생:", e)
+def send_slack_message(msg):
+    payload = {
+        "text": msg
+    }
+    try:
+        res = requests.post(SLACK_WEBHOOK_URL, json=payload, timeout=10)
+        print(f"📤 슬랙 전송 응답: {res.status_code} - {res.text}")
+    except Exception as e:
+        print("❌ 슬랙 전송 실패:", e)
 
 def fetch_market_codes():
     try:
@@ -104,13 +96,13 @@ async def handle_socket():
                     (market not in last_sent or now - last_sent[market] > 600)
                 ):
                     names = coin_meta[market]
-                    msg = f"[실전포착] {names['english_name']} ({names['korean_name']})\n" + \
-                          f"- 현재가: {int(price):,}원 (+{rate:.2f}%)\n" + \
-                          f"- 체결강도 변화: {strength_diff:.1f}%\n" + \
-                          f"- 거래대금 증가: {volume_diff / 1e8:.2f}억 (30초 기준)\n" + \
-                          f"- 판단: 상승 조짐 감지. 진입 여부 판단 요망."
-                    print("📡 조건 만족 → 메시지 전송")
-                    send_telegram_message(msg)
+                    msg = f"*📈 실전포착: {names['english_name']} ({names['korean_name']})*\n" + \
+                          f"> 💰 현재가: *{int(price):,}원* (+{rate:.2f}%)\n" + \
+                          f"> 📊 체결강도 변화: *{strength_diff:.1f}%*\n" + \
+                          f"> 💸 거래대금 증가: *{volume_diff / 1e8:.2f}억* (30초 기준)\n" + \
+                          f"> ✅ 판단: 상승 조짐 감지. 진입 여부 판단 요망."
+                    print("📡 조건 만족 → 슬랙 메시지 전송")
+                    send_slack_message(msg)
                     last_sent[market] = now
             except Exception as e:
                 print("❌ WebSocket 오류:", e)
@@ -132,9 +124,9 @@ def startup_event():
 
 @app.get("/")
 def root():
-    return {"status": "OK", "message": "실전 급등 포착 서버 작동 중 ✅"}
+    return {"status": "OK", "message": "슬랙 실전 급등 포착 시스템 작동 중 ✅"}
 
 @app.get("/test")
 def test():
-    send_telegram_message("📡 *업비트 실전 전송 테스트 메시지입니다*")
+    send_slack_message("✅ *슬랙 알림 테스트 메시지입니다.* 시스템 작동 확인용.")
     return {"status": "sent"}
