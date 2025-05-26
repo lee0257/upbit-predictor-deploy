@@ -60,51 +60,55 @@ async def handle_socket():
         await ws.send(json.dumps(payload))
 
         while True:
-            msg = await ws.recv()
-            data = json.loads(msg)
-            market = data["code"]
-            price = data["trade_price"]
-            acc_volume = data["acc_trade_price_24h"]
-            bid = data.get("acc_bid_volume", 1)
-            ask = data.get("acc_ask_volume", 1)
-            strength = ask / max(bid, 1) * 100
-            now = time.time()
+            try:
+                msg = await ws.recv()
+                data = json.loads(msg)
+                market = data["code"]
+                price = data["trade_price"]
+                acc_volume = data["acc_trade_price_24h"]
+                bid = data.get("acc_bid_volume", 1)
+                ask = data.get("acc_ask_volume", 1)
+                strength = ask / max(bid, 1) * 100
+                now = time.time()
 
-            if market not in base_prices:
-                base_prices[market] = price
-                volume_window[market] = []
-                strength_window[market] = []
+                if market not in base_prices:
+                    base_prices[market] = price
+                    volume_window[market] = []
+                    strength_window[market] = []
 
-            rate = ((price - base_prices[market]) / base_prices[market]) * 100
+                rate = ((price - base_prices[market]) / base_prices[market]) * 100
 
-            volume_window[market].append((now, acc_volume))
-            volume_window[market] = [v for v in volume_window[market] if now - v[0] <= 30]
-            volume_diff = volume_window[market][-1][1] - volume_window[market][0][1] if len(volume_window[market]) >= 2 else 0
+                volume_window[market].append((now, acc_volume))
+                volume_window[market] = [v for v in volume_window[market] if now - v[0] <= 30]
+                volume_diff = volume_window[market][-1][1] - volume_window[market][0][1] if len(volume_window[market]) >= 2 else 0
 
-            strength_window[market].append((now, strength))
-            strength_window[market] = [s for s in strength_window[market] if now - s[0] <= 30]
-            strength_diff = strength_window[market][-1][1] - strength_window[market][0][1] if len(strength_window[market]) >= 2 else 0
+                strength_window[market].append((now, strength))
+                strength_window[market] = [s for s in strength_window[market] if now - s[0] <= 30]
+                strength_diff = strength_window[market][-1][1] - strength_window[market][0][1] if len(strength_window[market]) >= 2 else 0
 
-            if acc_volume > 1e8 or strength > 100:
-                kst_now = datetime.utcnow() + timedelta(hours=9)
-                with open(log_path, "a", encoding="utf-8") as f:
-                    f.write(f"{kst_now.isoformat()},{market},{price},{acc_volume},{strength:.2f},{rate:.2f}\n")
+                if acc_volume > 1e8 or strength > 100:
+                    kst_now = datetime.utcnow() + timedelta(hours=9)
+                    with open(log_path, "a", encoding="utf-8") as f:
+                        f.write(f"{kst_now.isoformat()},{market},{price},{acc_volume},{strength:.2f},{rate:.2f}\n")
 
-            if (
-                volume_diff >= 0.7e8 and
-                strength_diff >= 20 and
-                0.3 <= rate <= 4.5 and
-                (market not in last_sent or now - last_sent[market] > 600)
-            ):
-                names = coin_meta[market]
-                msg = f"[실전포착] {names['english_name']} ({names['korean_name']})\n" + \
-                      f"- 현재가: {int(price):,}원 (+{rate:.2f}%)\n" + \
-                      f"- 체결강도 변화: {strength_diff:.1f}%\n" + \
-                      f"- 거래대금 증가: {volume_diff / 1e8:.2f}억 (30초 기준)\n" + \
-                      f"- 판단: 상승 조짐 감지. 진입 여부 판단 요망."
-                print("📡 조건 만족 → 메시지 전송")
-                send_telegram_message(msg)
-                last_sent[market] = now
+                if (
+                    volume_diff >= 0.7e8 and
+                    strength_diff >= 20 and
+                    0.3 <= rate <= 4.5 and
+                    (market not in last_sent or now - last_sent[market] > 600)
+                ):
+                    names = coin_meta[market]
+                    msg = f"[실전포착] {names['english_name']} ({names['korean_name']})\n" + \
+                          f"- 현재가: {int(price):,}원 (+{rate:.2f}%)\n" + \
+                          f"- 체결강도 변화: {strength_diff:.1f}%\n" + \
+                          f"- 거래대금 증가: {volume_diff / 1e8:.2f}억 (30초 기준)\n" + \
+                          f"- 판단: 상승 조짐 감지. 진입 여부 판단 요망."
+                    print("📡 조건 만족 → 메시지 전송")
+                    send_telegram_message(msg)
+                    last_sent[market] = now
+            except Exception as e:
+                print("❌ WebSocket 오류:", e)
+                await asyncio.sleep(5)
 
 def start_background_task():
     fetch_market_codes()
@@ -116,7 +120,9 @@ app = FastAPI()
 
 @app.on_event("startup")
 def startup_event():
-    threading.Thread(target=start_background_task).start()
+    thread = threading.Thread(target=start_background_task)
+    thread.start()
+    thread.join()  # 컨테이너 종료 방지
 
 @app.get("/")
 def root():
