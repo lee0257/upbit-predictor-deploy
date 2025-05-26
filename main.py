@@ -27,12 +27,9 @@ def send_telegram_message(msg):
         payload = {"chat_id": chat_id, "text": msg, "parse_mode": "Markdown"}
         try:
             res = requests.post(url, json=payload, timeout=10)
-            if res.status_code != 200:
-                print(f"❌ 전송 실패: {res.status_code} - {res.text}")
-            else:
-                print(f"📤 전송 성공: {res.status_code} - {res.text}")
+            print(f"[텔레그램] 응답코드 {res.status_code} → {res.text}")
         except Exception as e:
-            print("❌ 텔레그램 예외 발생:", e)
+            print("❌ 텔레그램 예외:", e)
 
 def fetch_market_codes():
     try:
@@ -47,7 +44,7 @@ def fetch_market_codes():
                     "english_name": code.replace("KRW-", ""),
                     "korean_name": market["korean_name"]
                 }
-        print("✅ 종목 메타 수집 완료:", len(coin_meta))
+        print(f"✅ 종목 메타 수집 완료: {len(coin_meta)} 종목")
     except Exception as e:
         print("❌ 메타 수집 실패:", e)
 
@@ -132,5 +129,5 @@ def root():
 
 @app.get("/test")
 def test():
-    send_telegram_message("✅ *업비트 실전 급등 테스트 메시지*")
+    send_telegram_message("📡 *업비트 실전 전송 테스트 메시지*")
     return {"status": "sent"}
