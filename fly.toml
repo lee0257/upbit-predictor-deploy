@@ -1,23 +1,15 @@
 app = "upbit-predictor"
+primary_region = "nrt"
 
 [build]
-  image = "python:3.11"
+  builder = "paketobuildpacks/builder:base"
 
 [env]
-  PORT = "8080"
+  TELEGRAM_TOKEN = "7994021618:AAG14Rf9frHyQ-0IWnj54kuX6Bm1OQ0z0ak"
+  CHAT_IDS = "1901931119"
+  SUPABASE_URL = "https://gzqpbywussubofgbsydw.supabase.co"
+  SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 
-[[services]]
-  internal_port = 8080
-  protocol = "tcp"
-
-  [services.concurrency]
-    hard_limit = 25
-    soft_limit = 20
-
-  [[services.ports]]
-    port = 80
-    handlers = ["http"]
-
-  [[services.ports]]
-    port = 443
-    handlers = ["tls", "http"]
+[experimental]
+  allowed_public_ports = []
+  auto_rollback = true
