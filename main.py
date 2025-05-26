@@ -29,7 +29,7 @@ def send_telegram_message(msg):
         payload = {"chat_id": chat_id, "text": msg, "parse_mode": "Markdown"}
         try:
             res = requests.post(url, json=payload)
-            print("📤 텔레그램 전송 응답:", res.status_code, res.text)
+            print("📤 텔레그램 전송 성공:", res.status_code, res.text)
         except Exception as e:
             print("❌ 텔레그램 전송 실패:", e)
 
@@ -110,6 +110,7 @@ async def handle_socket():
                       f"- 체결강도 변화: {strength_diff:.1f}%\n" + \
                       f"- 거래대금 증가: {volume_diff / 1e8:.2f}억 (30초 기준)\n" + \
                       f"- 판단: 상승 조짐 감지. 진입 여부 판단 요망."
+                print("📡 조건 만족 → 메시지 전송 시작")
                 send_telegram_message(msg)
                 last_sent[market] = now
 
