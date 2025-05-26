@@ -4,11 +4,12 @@ from supabase import create_client
 import os
 
 # === 🔐 설정값 ===
-TELEGRAM_TOKEN = "7287889681:AAHqKbipumgMmRQ8J4_Zu8Nlu_CYDnbCt0U"
-CHAT_IDS = ["1901931119"]  # 수신 대상자 리스트 (친구 제외됨)
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+CHAT_IDS = os.getenv("CHAT_IDS", "").split(",")
+SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL")
 
-SUPABASE_URL = "https://gzqpbywussubofgbsydw.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd6cXBieXd1c3N1Ym9mZ2JzeWR3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgyMzAwMDMsImV4cCI6MjA2Mzc4NjAwM30.rkE-N_mBlSYOYQnXUTuodRCfAl6ogfwl3q-j_1xguB8"
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 # === 🧩 Supabase 클라이언트 초기화 ===
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -31,6 +32,18 @@ def send_telegram_message(message: str):
         except Exception as e:
             print(f"[오류] 텔레그램 전송 실패: {e}")
 
+# === ✉️ 슬랙 메시지 전송 함수 ===
+def send_slack_message(message: str):
+    try:
+        response = requests.post(
+            SLACK_WEBHOOK_URL,
+            json={"text": message},
+            timeout=10
+        )
+        print("슬랙 응답:", response.status_code, response.text)
+    except Exception as e:
+        print(f"[오류] 슬랙 전송 실패: {e}")
+
 # === 💾 Supabase 저장 함수 ===
 def insert_to_supabase(message: str):
     try:
@@ -49,9 +62,10 @@ async def send_message(request: Request):
         return {"status": "fail", "message": "❌ 메시지가 비어 있습니다"}
 
     send_telegram_message(message)
+    send_slack_message(message)
     insert_to_supabase(message)
 
-    return {"status": "success", "message": "✅ 텔레그램 및 Supabase 전송 완료"}
+    return {"status": "success", "message": "✅ 텔레그램 + 슬랙 + Supabase 전송 완료"}
 
 # === 🟢 GET: 서버 연결 확인 라우트 ===
 @app.get("/")

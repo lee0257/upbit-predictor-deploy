@@ -9,6 +9,7 @@ primary_region = "nrt"
   CHAT_IDS = "1901931119"
   SUPABASE_URL = "https://gzqpbywussubofgbsydw.supabase.co"
   SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  SLACK_WEBHOOK_URL = "https://hooks.slack.com/services/*********/*********/*********"
 
 [experimental]
   allowed_public_ports = []
