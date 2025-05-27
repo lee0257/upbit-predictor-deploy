@@ -7,8 +7,6 @@ primary_region = "nrt"
 [env]
   TELEGRAM_TOKEN = "7994021618:AAG14Rf9frHyQ-0IWnj54kuX6Bm1OQ0z0ak"
   CHAT_IDS = "1901931119"
-  SUPABASE_URL = "https://gzqpbywussubofgbsydw.supabase.co"
-  SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
   SLACK_WEBHOOK_URL = "https://hooks.slack.com/services/*********/*********/*********"
 
 [experimental]
