@@ -1,14 +1,26 @@
 app = "upbit-prod-final-notouch"
-primary_region = "nrt"
-
-[build]
-  builder = "paketobuildpacks/builder:base"
+kill_signal = "SIGINT"
+kill_timeout = 5
+processes = []
 
 [env]
-  TELEGRAM_TOKEN = "7994021618:AAG14Rf9frHyQ-0IWnj54kuX6Bm1OQ0z0ak"
-  CHAT_IDS = "1901931119"
-  SLACK_WEBHOOK_URL = "https://hooks.slack.com/services/*********/*********/*********"
+  PORT = "8080"
 
 [experimental]
-  allowed_public_ports = []
   auto_rollback = true
+
+[[services]]
+  internal_port = 8080
+  protocol = "tcp"
+
+  [[services.ports]]
+    handlers = ["http"]
+    port = 80
+
+  [[services.ports]]
+    handlers = ["tls", "http"]
+    port = 443
+
+  [[services.tcp_checks]]
+    interval = 10000
+    timeout = 2000
