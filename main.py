@@ -17,7 +17,7 @@ def send_telegram_message(message: str):
             url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
             payload = {"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
             response = requests.post(url, json=payload, timeout=10)
-            print("텔레그램 응답:", response.status_code)
+            print("텔레그램 응답:", response.status_code, response.text)
         except Exception as e:
             print(f"[텔레그램 실패] {e}")
 
@@ -27,14 +27,14 @@ def send_slack_message(message: str):
         return
     try:
         response = requests.post(SLACK_WEBHOOK_URL, json={"text": message}, timeout=10)
-        print("슬랙 응답:", response.status_code)
+        print("슬랙 응답:", response.status_code, response.text)
     except Exception as e:
         print(f"[슬랙 실패] {e}")
 
 @app.on_event("startup")
 async def auto_message():
-    send_telegram_message("🚀 서버 시작됨 - 자동 메시지 전송")
-    send_slack_message("🚀 서버 시작됨 - 자동 메시지 전송")
+    send_telegram_message("🚀 [PROD] 서버 시작됨 - 자동 메시지 전송")
+    send_slack_message("🚀 [PROD] 서버 시작됨 - 자동 메시지 전송")
 
 @app.post("/send-message")
 async def send_message(request: Request):
