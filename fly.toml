@@ -1,4 +1,4 @@
-app = "upbit-predictor"
+app = "upbit-predictor-deploy-dteaga"
 primary_region = "nrt"
 
 [build]
